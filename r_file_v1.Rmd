@@ -1,0 +1,81 @@
+---
+title: "Regression - Final project"
+author: "Victoire de Termont and Sarah Jallot"
+date: "12/3/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\textbf{I. Introduction}  
+  
+We are given a dataset, containing variables that describle almost comprehensively every aspect of residential homes in Ames, Iowa. For a certain number of homes (the number of lines of our dataframe), the associated price is given. The goal of this analysis is to select the good criteria and the most adapted regression model in order to be able to dertermine the price of other homes in Ames, based on this information.  
+Firt, we have to look at the data, and get a first intuition of an efficient model. Indeed, before starting our full analysis, we have to understand what we are given, check that there are no missing values, and than R classifies correctly each regressor.  
+
+```{r, echo=TRUE}
+# Loading the data set 
+home <- read.csv("train_imputed.csv", row.names=1)
+```
+
+```{r, echo=TRUE}
+# Looking at the dataset 
+head(home)
+```
+```{r, echo=TRUE}
+summary(home)
+```
+Looking at our dataframe, we have 67 columns, thus 66 regressors (and then we have to include an intercept) and 1460 observations. Our dataframe seems to contain almost each aspect of a home, but we can imagine that they are not all useful to predict the price. 
+We have to treat missing values before doing analysis. 
+```{r, echo=TRUE}
+sum(is.na(home))
+```
+There is no missing value in our dataframe.
+To do correlation matrices, we need numerical or factor variables. 
+
+```{r}
+# Getting the type of our regressors
+sapply(home, class)
+```
+Looking at the type of each regressor, our dataframe seems to classify them correctly. As we have many factor columns, we have to transform them into dummies in order to analyze the data. Also, as we have a lot of columns, we will remove the ones that are too correlated among them.
+
+```{r}
+pairs(home[1:10])
+```
+
+
+```{r}
+# getting only numerical and categorical variables with numbers 
+library(dummies)
+home_dummy <- dummy_columns(home, remove_first_dummy = TRUE)
+# removing the first
+head(home_dummy)
+# Dropping string columns now that turned into dummies 
+
+# POURQUOI EST CE QUE CA NE MARCHE PAS ???
+```
+
+  
+\textbf{II. Exploratory data analysis / initial modeling}  
+  
+Now that our dataset is correctly formated, we can try to extract trends and relationships among the regressors. Indeed, histograms are a good way to understand the behavior of each regressor. Comparing them is also essential, for instance using pairplots. As the goal is to have an efficient model, we don't want to keep variables that are not correlated with the output, or that are very correlated among them as it leads to redundance. Thus, we could get a first intuition of variables to keep using a correlarion matrix. We will have to deal string regressors before doing so.  
+As our intuition is that the location of the flat has a big impact, we could try to mathematically test this hypothesis.  
+  
+\textbf{III. Modeling and diagnostics}  
+  
+We will start by a linear model, and then add a Lasso penalization as we have a lot of regressors. Using those two models, Anova methods will enable us to select the appropriate regressors.  
+Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
+  
+\textbf{IV. Final models}  
+  
+Parameters of our model:  
+Error:  
+Confidence interval:  
+p-value:  
+Estimate of the generalization error of our final model:  
+  
+\textbf{V. Discuttion}  
+Final conclusions on our model:  
+key learnings:  
+Improvements for future projects:  
