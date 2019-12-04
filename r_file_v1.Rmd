@@ -26,6 +26,7 @@ head(home)
 ```{r, echo=TRUE}
 summary(home)
 ```
+
 Looking at our dataframe, we have 67 columns, thus 66 regressors (and then we have to include an intercept) and 1460 observations. Our dataframe seems to contain almost each aspect of a home, but we can imagine that they are not all useful to predict the price. 
 We have to treat missing values before doing analysis. 
 ```{r, echo=TRUE}
@@ -38,34 +39,104 @@ To do correlation matrices, we need numerical or factor variables.
 # Getting the type of our regressors
 sapply(home, class)
 ```
+```{r}
+# Other method 
+str(home, give.attr = FALSE)
+```
+
 Looking at the type of each regressor, our dataframe seems to classify them correctly. As we have many factor columns, we have to transform them into dummies in order to analyze the data. Also, as we have a lot of columns, we will remove the ones that are too correlated among them.
 
-```{r}
-pairs(home[1:10])
-```
 
-
-```{r}
-# getting only numerical and categorical variables with numbers 
-library(dummies)
-home_dummy <- dummy_columns(home, remove_first_dummy = TRUE)
-# removing the first
-head(home_dummy)
-# Dropping string columns now that turned into dummies 
-
-# POURQUOI EST CE QUE CA NE MARCHE PAS ???
-```
-
-  
 \textbf{II. Exploratory data analysis / initial modeling}  
   
 Now that our dataset is correctly formated, we can try to extract trends and relationships among the regressors. Indeed, histograms are a good way to understand the behavior of each regressor. Comparing them is also essential, for instance using pairplots. As the goal is to have an efficient model, we don't want to keep variables that are not correlated with the output, or that are very correlated among them as it leads to redundance. Thus, we could get a first intuition of variables to keep using a correlarion matrix. We will have to deal string regressors before doing so.  
 As our intuition is that the location of the flat has a big impact, we could try to mathematically test this hypothesis.  
-  
+
+```{r}
+# Doing a pairplot for 10 features 
+pairs(home[1:10])
+```
+
+```{r}
+# Doing a correlation matrix using only our numerical features 
+nums = unlist(lapply(home, is.numeric)) 
+home_numerical = home[ , nums]
+library(corrplot) 
+R = round(cor(home_numerical),2)
+corrplot(R, method="ellipse")
+```
+Using a correlation matrix, the numerical features that are the most correlated with SalePrice are OverallQual, TotalBsmtSE, X1stElrSF, GrLivArea, GarageCars and GarageArea.
+On the contrary, MoSold, YrSold and BsmtHalfBath seem very poorly correlated with SalePrice. 
+These correlations allow us to get a first intuition on the variables that we will keep to build our regression model. Indeed, we want our features to explain the output, and thus we will remove the column that don't serve that purpose. 
+
+We should also look at correlation among our features. Indeed, OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
+
+
+```{r}
+# getting only numerical and factor variables to be able to use our full model 
+library(dummies)
+home_dummy <- dummy.data.frame(home)
+# removing the first dummy columnn for each category : CA NE MARCHE PAS 
+
+head(home_dummy)
+```
+
+
+
+```{r}
+# Example of very correlated feature : location of the home -> do a boxplot per location MSZoning
+library(ggplot2)
+ggplot(home) + aes(x=MSZoning, y=SalePrice) + geom_boxplot()
+```
+
+```{r}
+# Example of not correlated feature : condition of the garage 
+ggplot(home) + aes(x=GarageCond, y=SalePrice) + geom_boxplot()
+```
+
+
+```{r}
+# Try to find the law of the most correlated variables
+par(mfrow=c(1,2))
+hist(home$OverallQual)
+uniform = runif(n=1640,min = 1, max=10)
+qqplot(home$OverallQual, uniform) # does not follow a uniform law but not a normal law either
+```
+
+
+```{r}
+# pairplot split by location MSZoning ? 
+ggpairs(home, aes(colour = MSZoning, alpha = 0.8), title="Pairs plot for home dataset") + theme_grey(base_size = 8)
+```
+
 \textbf{III. Modeling and diagnostics}  
   
 We will start by a linear model, and then add a Lasso penalization as we have a lot of regressors. Using those two models, Anova methods will enable us to select the appropriate regressors.  
 Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
+
+```{r}
+# Define a linear model using all features 
+reg=lm(SalePrice~., data=home_2)
+```
+
+
+```{r}
+# 3 anova tests with a classical linear model
+
+
+```
+
+```{r}
+# Validate (or not) the postulates 
+```
+
+```{r}
+# tests to detect outliers
+```
+  
+```{r}
+# Compare the models with and without outliers (AIC...)
+```
   
 \textbf{IV. Final models}  
   
@@ -75,7 +146,7 @@ Confidence interval:
 p-value:  
 Estimate of the generalization error of our final model:  
   
-\textbf{V. Discuttion}  
+\textbf{V. Discussion}  
 Final conclusions on our model:  
 key learnings:  
 Improvements for future projects:  
