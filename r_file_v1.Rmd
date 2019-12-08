@@ -98,7 +98,11 @@ ggplot(home) + aes(x=GarageCond, y=SalePrice) + geom_boxplot()
 ```{r}
 # Try to find the law of the most correlated variables
 par(mfrow=c(1,2))
+
 hist(home$OverallQual)
+d = density(home$OverallQual)
+lines(d, col='red')
+
 uniform = runif(n=1640,min = 1, max=10)
 qqplot(home$OverallQual, uniform) # does not follow a uniform law but not a normal law either
 ```
@@ -106,6 +110,7 @@ qqplot(home$OverallQual, uniform) # does not follow a uniform law but not a norm
 
 ```{r}
 # pairplot split by location MSZoning ? 
+library(GGally)
 ggpairs(home, aes(colour = MSZoning, alpha = 0.8), title="Pairs plot for home dataset") + theme_grey(base_size = 8)
 ```
 
@@ -116,7 +121,8 @@ Then, we will compare our models using criteria seen in class. We will also test
 
 ```{r}
 # Define a linear model using all features 
-reg=lm(SalePrice~., data=home_2)
+reg=lm(SalePrice~., data=home)
+summary(reg)
 ```
 
 
@@ -128,6 +134,11 @@ reg=lm(SalePrice~., data=home_2)
 
 ```{r}
 # Validate (or not) the postulates 
+par(mfrow=c(2,2))
+plot(reg, which=1) # P1
+plot(reg, which=3) # P2
+acf(residuals(reg), main= "Auto-correlation plot") # P3
+plot(reg, which=2) # P4
 ```
 
 ```{r}
