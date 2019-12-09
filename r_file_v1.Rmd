@@ -46,55 +46,62 @@ There are no missing values in our dataframe.
 #sapply(home, class)
 str(home, give.attr = FALSE)
 ```
-From this summary, R appears to classify our regressors in the right category. All quantitative features are integers and price, the output, is the only numeric.  
-  
+From this summary, R appears to classify some features as integers when they could be considered as factors: mainly features related to years or areas, like MSZoning ir YearBuilt. 
+All quantitative features are integers and price, the output, is the only numeric.  
 Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so. 
+```{r}
+wrong_categories = c("YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSZoning", "MSSubClass")
+for (category in wrong_categories) {home[,category] = as.factor(home[,category])}
+```
   
-\textbf{II. Exploratory data analysis / initial modeling}  
+\textbf{II. Exploratory data analysis / initial modeling} 
+  
 To do correlation matrices, we need numerical or factor variables.  
-
-Now that our dataset is correctly formated, we will extract trends and relationships among the regressors. Comparing them is also essential, for instance using pairplots. As the goal is to have an efficient model, we don't want to keep variables that are not correlated with the output, or that are very correlated among them as it leads to redundance. Thus, we could get a first intuition of variables to keep using a correlarion matrix. We will have to deal string regressors before doing so.  
-As our intuition is that the location of the flat has a big impact, we will try to mathematically test this hypothesis.  
-
+  
+Now that our dataset is correctly formated, we will extract trends and relationships among the regressors. Comparing them is also essential, for instance using pairplots.
+As our intuition is that the location of the flat has a big impact, we will test this hypothesis.  
 ```{r}
 # Doing a pairplot for 10 features 
 pairs(home[1:10])
 ```
+Getting a few insights from the data 
+```{r}
+plot(SalePrice ~ YrSold, data=home,  xlab="Year Sold", ylab="Sale Price")
+```
 
+# COMMENT
 A. Numerical analysis
 ```{r}
 # Plot histogram grid
 nums = unlist(lapply(home, is.numeric))
-home_numerical = home[ , nums]
-
-hist(home_numerical)
-# Clear the text "residue"
-plt.show()
+home_numerical = (home[ , nums])
+dim(home_numerical)
+#home_numerical = as.data.frame(matrix(unlist(home_numerical), nrow=length(home_numerical), byrow=T))
 ```
-Histograms are a good way to understand the behavior of each regressor. # COMMENT
 
 ```{r}
-library(corrplot) 
-R = round(cor(home_numerical),2)
-corrplot(R, method="ellipse")
+#hist(home_numerical)
 ```
+Histograms are a good way to understand the behavior of each regressor. 
+# COMMENT
+
 Looking at inter-feature correlations first, we observe that OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
 
 The numerical features that are the most correlated with SalePrice are OverallQual, TotalBsmtSE, X1stElrSF, GrLivArea, GarageCars and GarageArea. On the contrary, MoSold, YrSold and BsmtHalfBath are poorly correlated to SalePrice. As the correlation matrix does not take into account interactions between our features in predicting sales price, we will not infer from this which variables we will keep in our final model.  
 
-#These correlations allow us to get a first intuition on the variables that we will keep to build our regression model. Indeed, we want our features to explain the #output, and thus we will remove the column that don't serve that purpose. 
+## PCA 
+Given that we have 67 columns, of which 29 are quantitative, let's explore the possibilities we have to reduce our dataframe.  
+Because PCA works best with (scaled) numerical data, we will perform it on our scaled numerical feature columns. 
+```{r}
+home_numerical_output = home_numerical$SalePrice
+home_numerical_features = home_numerical[,2:ncol(home_numerical)] # we will perform the PCA analysis on this dataset. 
+```
 
 
 ```{r}
-## PCA
-#Given that our features are very highly correlated, when fitting our model, we can assume leaving some out will marginally affect model performance.  
-#Performing PCA on our dataset, then looking at the proportion of variance explained, allows us to confirm our assumption and quantify how many features are useful to use. 
-# Getting numerical features from our dataset
+pca.train = home_numerical_features
+prin_comp = prcomp(pca.train, center = TRUE, scale. = TRUE)
 
-print(home_numerical)
-pca.train = home[2:29,]
-# 
-prin_comp = prcomp(pca.train, scale. = T)
 # Compute standard deviation of each principal component
 std_dev = prin_comp$sdev
 
@@ -103,38 +110,72 @@ pr_var = std_dev^2
 prop_varex = pr_var/sum(pr_var)
 
 # Cumulative scree plot
-plot(cumsum(prop_varex), xlab = "Principal Component",
-              ylab = "Cumulative Proportion of Variance Explained",
-              type = "b")
+plot(cumsum(prop_varex), 
+     xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained",
+     type = "b")
+
+abline(h=1, col='red')
+abline(v=23, col='black', lty = 3)
 ```
+23 of our 28 numerical features account for 99% of the variance.  
+For 20 features, we still get an acceptable explained variance of ~96% > 95%.
+  
   
 B. Factor analysis  
-As we have many factor columns, we have to transform them into dummies in order to analyze the data. We will remove the ones that are too correlated.  
+For our first contact with the factors, let us get a closer look at level repartition to get an idea of fragmentation within the factors.  
 ```{r}
+par(mfrow=c(1,3))
 # Plotting factor repartition 
 factors = unlist(lapply(home, is.factor))
-home_factor = home[,factors]
+home_factors = home[,factors]
+for (feature in 1:ncol(home_factors)){
+barplot(table(home_factors[feature]), main = colnames(home_factors)[feature])}
+```
+Observing the factor columns, we see three types of repartitions.  
+i) Clear surrepresentation of one level versus the others. 
+In Street and Utilities, which are binary, this is conspicuous. From this we infer that these factors won't be very useful in predicting house price in general: nearly all houses will be in the same category along these factors (and for those who aren't, data is too sparse to generalise well).  
+(this is also the case for RoofMatl, Heating, )
+ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We could regroup some of these levels together to improve our predictions.  
+(this is also the case for Exterior1st, Exterior2nd, GarageCond)
+  
+iii) Classic factor repartition with
+
+
+As we have many factor columns, we have to transform them into dummies in order to analyze the data. We will remove the ones that are too correlated.  
+```{r}
+plot(home_factors[1:10])
 ```
 
-
-
+We implement dummy categorical encoding to get rid of the alphabetical levels automatically implemented by R.  
 ```{r}
-# Doing a correlation matrix using only our numerical features 
-nums = unlist(lapply(home, is.numeric)) 
-home_numerical = home[ , nums]
-
-```
-
-```{r}
-# getting only numerical and factor variables to be able to use our full model 
 library(dummies)
-home_dummy <- dummy.data.frame(home)
-# removing the first dummy columnn for each category : CA NE MARCHE PAS 
-
-head(home_dummy)
+home_encoded <- dummy.data.frame(home)
+head(home_encoded)
 ```
+Let us perform PCA a second time, this time adding in our dummy-encoded factors. 
+```{r}
+home_encoded_features = home_encoded[,2:ncol(home_encoded)]
+pca.train = home_encoded_features # excluding SalePrice from the PCA
+prin_comp = prcomp(pca.train, center = TRUE, scale. = TRUE)
 
+# Compute standard deviation of each principal component
+std_dev = prin_comp$sdev
 
+# Compute variance
+pr_var = std_dev^2
+prop_varex = pr_var/sum(pr_var)
+
+# Cumulative scree plot
+plot(cumsum(prop_varex), 
+     xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained",
+     type = "b")
+
+abline(h=1, col='red')
+abline(v=200, col='black', lty = 3)
+```
+Keeping 200 of the 262 features, we explain 99% of the variance. Keeping 170 we explain ~96% > 95% of the variance. A priori, we can perform dimensionality reduction without loosing substantial information. 
 
 ```{r}
 # Example of very correlated feature : location of the home -> do a boxplot per location MSZoning
