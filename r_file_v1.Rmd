@@ -43,28 +43,29 @@ There are no missing values in our dataframe.
   
 ```{r}
 # Getting regressor types
-#sapply(home, class)
 str(home, give.attr = FALSE)
 ```
-From this summary, R appears to classify some features as integers when they could be considered as factors: mainly features related to years or areas, like MSZoning ir YearBuilt. 
+From this summary, R appears to classify some features as integers when they could be considered as factors: mainly factors related to areas, like MSZoning.  
+After debating whether we would consider Years as categories, we decided against given that we might come across a previously unencountered year in the test data which would nullify the interest of using year as a factor. ## A VOIR check whether we stay within the same range for year sold or if there are new years! 
+
 All quantitative features are integers and price, the output, is the only numeric.  
 Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so. 
+We start by reaffecting the missclassified int categories to factor type: 
 ```{r}
-wrong_categories = c("YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSZoning", "MSSubClass")
-for (category in wrong_categories) {home[,category] = as.factor(home[,category])}
+wrong_categories = c( "MSZoning") #, "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
+#for (category in wrong_categories) {home[,category] = as.factor(home[,category])}
 ```
   
 \textbf{II. Exploratory data analysis / initial modeling} 
   
 To do correlation matrices, we need numerical or factor variables.  
-  
 Now that our dataset is correctly formated, we will extract trends and relationships among the regressors. Comparing them is also essential, for instance using pairplots.
 As our intuition is that the location of the flat has a big impact, we will test this hypothesis.  
 ```{r}
 # Doing a pairplot for 10 features 
 pairs(home[1:10])
 ```
-Getting a few insights from the data 
+We start off by getting a few insights on interactions between features and price based on our intuition. 
 ```{r}
 plot(SalePrice ~ YrSold, data=home,  xlab="Year Sold", ylab="Sale Price")
 ```
@@ -75,16 +76,16 @@ A. Numerical analysis
 # Plot histogram grid
 nums = unlist(lapply(home, is.numeric))
 home_numerical = (home[ , nums])
-dim(home_numerical)
-#home_numerical = as.data.frame(matrix(unlist(home_numerical), nrow=length(home_numerical), byrow=T))
 ```
 
 ```{r}
-#hist(home_numerical)
+par(mfrow=c(1,2))
+for (colname in colnames(home_numerical)) {
+  hist(home_numerical[,colname], main = colname)
+  boxplot(home_numerical[,colname], main = colname)}
 ```
-Histograms are a good way to understand the behavior of each regressor. 
-# COMMENT
 
+# COMMENT
 Looking at inter-feature correlations first, we observe that OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
 
 The numerical features that are the most correlated with SalePrice are OverallQual, TotalBsmtSE, X1stElrSF, GrLivArea, GarageCars and GarageArea. On the contrary, MoSold, YrSold and BsmtHalfBath are poorly correlated to SalePrice. As the correlation matrix does not take into account interactions between our features in predicting sales price, we will not infer from this which variables we will keep in our final model.  
@@ -135,12 +136,13 @@ barplot(table(home_factors[feature]), main = colnames(home_factors)[feature])}
 Observing the factor columns, we see three types of repartitions.  
 i) Clear surrepresentation of one level versus the others. 
 In Street and Utilities, which are binary, this is conspicuous. From this we infer that these factors won't be very useful in predicting house price in general: nearly all houses will be in the same category along these factors (and for those who aren't, data is too sparse to generalise well).  
-(this is also the case for RoofMatl, Heating, )
-ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We could regroup some of these levels together to improve our predictions.  
-(this is also the case for Exterior1st, Exterior2nd, GarageCond)
+(this is also the case for RoofMatl, Heating, XXXX)  
   
-iii) Classic factor repartition with
-
+ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We could regroup some of these levels together to improve our predictions.  
+(this is also the case for Exterior1st, Exterior2nd, GarageCond, XXXX)
+  
+iii) Classic factor repartition with reasonable representation of each modality, as is the case for Housestyle for instance. 
+(this is also the case for XXXX)
 
 As we have many factor columns, we have to transform them into dummies in order to analyze the data. We will remove the ones that are too correlated.  
 ```{r}
@@ -177,15 +179,30 @@ abline(v=200, col='black', lty = 3)
 ```
 Keeping 200 of the 262 features, we explain 99% of the variance. Keeping 170 we explain ~96% > 95% of the variance. A priori, we can perform dimensionality reduction without loosing substantial information. 
 
-```{r}
-# Example of very correlated feature : location of the home -> do a boxplot per location MSZoning
-library(ggplot2)
-ggplot(home) + aes(x=MSZoning, y=SalePrice) + geom_boxplot()
-```
 
+Let us start by making the hypothesis that location, e.g. MS Zoning, has a strong influence over SalePrice - an intuition we derive in part from the correlation matrix-. 
+```{r}
+# 
+library(ggplot2)
+ggplot(home, 
+       aes(x=MSZoning, 
+           y=SalePrice, 
+           colour=MSZoning, 
+           group = MSZoning, 
+           fill = MSZoning)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1) + geom_abline(h= 180921200, col='black')
+
+mean(home$SalePrice)
+```
+As we guessed, it appears that houses from the XX areas are less expensive than XXX. Let us confirm this visual impression with a proper test.
+## COMMENT on the outliers in RL 
 ```{r}
 # Example of not correlated feature : condition of the garage 
-ggplot(home) + aes(x=GarageCond, y=SalePrice) + geom_boxplot()
+ggplot(home, 
+       aes(x=GarageCond, 
+           y=SalePrice,
+           colour=GarageCond, 
+           group = GarageCond, 
+           fill = GarageCond)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
 ```
 
 
@@ -193,7 +210,7 @@ ggplot(home) + aes(x=GarageCond, y=SalePrice) + geom_boxplot()
 # Try to find the law of the most correlated variables
 par(mfrow=c(1,2))
 
-hist(home$OverallQual)
+hist(home$OverallQual, prob = TRUE)
 d = density(home$OverallQual)
 lines(d, col='red')
 
