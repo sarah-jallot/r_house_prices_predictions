@@ -189,12 +189,15 @@ ggplot(home,
            y=SalePrice, 
            colour=MSZoning, 
            group = MSZoning, 
-           fill = MSZoning)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1) + geom_abline(h= 180921200, col='black')
-
-mean(home$SalePrice)
+           fill = MSZoning)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
 ```
-As we guessed, it appears that houses from the XX areas are less expensive than XXX. Let us confirm this visual impression with a proper test.
 ## COMMENT on the outliers in RL 
+As we guessed, it appears that houses from the XX areas are less expensive than XXX. Let us confirm this visual impression with a proper test.
+```{r}
+mod1<-lm(SalePrice ~ MSZoning-1 , data=home)
+anova(mod1)
+```
+
 ```{r}
 # Example of not correlated feature : condition of the garage 
 ggplot(home, 
@@ -203,6 +206,10 @@ ggplot(home,
            colour=GarageCond, 
            group = GarageCond, 
            fill = GarageCond)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+```
+```{r}
+mod2<-lm(SalePrice ~ GarageCond-1 , data=home)
+anova(mod2)
 ```
 
 
