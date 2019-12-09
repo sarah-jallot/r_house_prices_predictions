@@ -12,58 +12,89 @@ knitr::opts_chunk$set(echo = TRUE)
 \textbf{I. Introduction} 
   
 Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE on test data.     
-The training data consists of a set of 66 categorical and quantitative variables extensively describing 1460 residential homes in Ames, Iowa, and their corresponding price in dollars. 
+The training data consists of a set of 66 categorical and quantitative variables extensively describing 1,460 residential homes in Ames, Iowa, and their corresponding price in dollars. 
 We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.      
 
 We will first explore our data to get a first intuition of an efficient model. Preprocessing and understanding the data implies that we understand what we are given, check that there are no missing values, and than R correctly categorises each regressor.  
 ```{r, echo=TRUE}
-# Loading the data set 
+# Loading the preprocessed dataset 
 home <- read.csv("train_imputed.csv", row.names=1)
 ```
 
 ```{r, echo=TRUE}
-# Looking at the dataset 
 head(home)
 ```
-The data we are presented with is heterogeneous. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
+The data we are handling is heterogeneous, although it is presented in a structured manner. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
+  
 `````{r, echo=TRUE}
 summary(home)
 ```
-In our dataframen there are 67 columns including the price, meaning a full model would include 66 features and an intercept, and 1,460 observations.  
-The list of features is extensive: we can infer that not all regressors are useful to predict house price. 
+In our dataframe, there are 67 columns including the price, meaning a full model would include 66 features and an intercept, and 1,460 observations.  
+The list of features is extensive: it is probable that not all regressors are useful to predict house price. 
   
 The quantitative variables differ in scale and range: prices start from ~35,000 dollars, and can attain 755,000, whereas bedrooms above ground range from 1 to 8 only for instance. 
-This means that scaling our data could be an option to optimise model performance. Note that all quantitative features seem to be integers.  
-
+This means that scaling our data could optimise model performance.  
+  
 We have to treat missing values before doing analysis. 
 ```{r, echo=TRUE}
 sum(is.na(home))
 ```
-There are no missing values in our dataframe.
-To do correlation matrices, we need numerical or factor variables. 
-Looking at the type of each regressor, our dataframe seems to classify them correctly. 
+There are no missing values in our dataframe.  
+  
 ```{r}
-# Getting the type of our regressors
+# Getting regressor types
 #sapply(home, class)
-# Other method 
 str(home, give.attr = FALSE)
 ```
-
-As we have many factor columns, we have to transform them into dummies in order to analyze the data. Also, as we have a lot of columns, we will remove the ones that are too correlated among them.
-
-
+From this summary, R appears to classify our regressors in the right category. All quantitative features are integers and price, the output, is the only numeric.  
+  
+Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so. 
+  
 \textbf{II. Exploratory data analysis / initial modeling}  
+To do correlation matrices, we need numerical or factor variables.  
+
+Now that our dataset is correctly formated, we will extract trends and relationships among the regressors. Comparing them is also essential, for instance using pairplots. As the goal is to have an efficient model, we don't want to keep variables that are not correlated with the output, or that are very correlated among them as it leads to redundance. Thus, we could get a first intuition of variables to keep using a correlarion matrix. We will have to deal string regressors before doing so.  
+As our intuition is that the location of the flat has a big impact, we will try to mathematically test this hypothesis.  
+
 ```{r}
+# Doing a pairplot for 10 features 
+pairs(home[1:10])
+```
+
+A. Numerical analysis
+```{r}
+# Plot histogram grid
+nums = unlist(lapply(home, is.numeric))
+home_numerical = home[ , nums]
+
+hist(home_numerical)
+# Clear the text "residue"
+plt.show()
+```
+Histograms are a good way to understand the behavior of each regressor. # COMMENT
+
+```{r}
+library(corrplot) 
+R = round(cor(home_numerical),2)
+corrplot(R, method="ellipse")
+```
+Looking at inter-feature correlations first, we observe that OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
+
+The numerical features that are the most correlated with SalePrice are OverallQual, TotalBsmtSE, X1stElrSF, GrLivArea, GarageCars and GarageArea. On the contrary, MoSold, YrSold and BsmtHalfBath are poorly correlated to SalePrice. As the correlation matrix does not take into account interactions between our features in predicting sales price, we will not infer from this which variables we will keep in our final model.  
+
+#These correlations allow us to get a first intuition on the variables that we will keep to build our regression model. Indeed, we want our features to explain the #output, and thus we will remove the column that don't serve that purpose. 
+
+
+```{r}
+## PCA
 #Given that our features are very highly correlated, when fitting our model, we can assume leaving some out will marginally affect model performance.  
 #Performing PCA on our dataset, then looking at the proportion of variance explained, allows us to confirm our assumption and quantify how many features are useful to use. 
 # Getting numerical features from our dataset
-nums = unlist(lapply(home, is.numeric)) 
-home_numerical = home[ , nums]
+
 print(home_numerical)
 pca.train = home[2:29,]
 # 
 prin_comp = prcomp(pca.train, scale. = T)
-
 # Compute standard deviation of each principal component
 std_dev = prin_comp$sdev
 
@@ -77,28 +108,22 @@ plot(cumsum(prop_varex), xlab = "Principal Component",
               type = "b")
 ```
   
-Now that our dataset is correctly formated, we can try to extract trends and relationships among the regressors. Indeed, histograms are a good way to understand the behavior of each regressor. Comparing them is also essential, for instance using pairplots. As the goal is to have an efficient model, we don't want to keep variables that are not correlated with the output, or that are very correlated among them as it leads to redundance. Thus, we could get a first intuition of variables to keep using a correlarion matrix. We will have to deal string regressors before doing so.  
-As our intuition is that the location of the flat has a big impact, we will try to mathematically test this hypothesis.  
-
+B. Factor analysis  
+As we have many factor columns, we have to transform them into dummies in order to analyze the data. We will remove the ones that are too correlated.  
 ```{r}
-# Doing a pairplot for 10 features 
-pairs(home[1:10])
+# Plotting factor repartition 
+factors = unlist(lapply(home, is.factor))
+home_factor = home[,factors]
 ```
+
+
 
 ```{r}
 # Doing a correlation matrix using only our numerical features 
 nums = unlist(lapply(home, is.numeric)) 
 home_numerical = home[ , nums]
-library(corrplot) 
-R = round(cor(home_numerical),2)
-corrplot(R, method="ellipse")
+
 ```
-Using a correlation matrix, the numerical features that are the most correlated with SalePrice are OverallQual, TotalBsmtSE, X1stElrSF, GrLivArea, GarageCars and GarageArea.
-On the contrary, MoSold, YrSold and BsmtHalfBath seem very poorly correlated with SalePrice. 
-These correlations allow us to get a first intuition on the variables that we will keep to build our regression model. Indeed, we want our features to explain the output, and thus we will remove the column that don't serve that purpose. 
-
-We should also look at correlation among our features. Indeed, OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
-
 
 ```{r}
 # getting only numerical and factor variables to be able to use our full model 
