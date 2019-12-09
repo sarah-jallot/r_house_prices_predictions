@@ -9,8 +9,9 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-\textbf{I. Introduction}  
-Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE.     
+\textbf{I. Introduction} 
+  
+Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE on test data.     
 The training data consists of a set of 66 categorical and quantitative variables extensively describing 1460 residential homes in Ames, Iowa, and their corresponding price in dollars. 
 We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.      
 
@@ -25,35 +26,59 @@ home <- read.csv("train_imputed.csv", row.names=1)
 head(home)
 ```
 The data we are presented with is heterogeneous. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
-The quantitative variables differ in scale and range: prices start from circa 35000 dollars, and can attain several hundred thousand, whereas bedrooms above ground for instance range from one to eight only. This means that we might have to scale our data to make our model more efficient. 
 `````{r, echo=TRUE}
 summary(home)
 ```
+In our dataframen there are 67 columns including the price, meaning a full model would include 66 features and an intercept, and 1,460 observations.  
+The list of features is extensive: we can infer that not all regressors are useful to predict house price. 
+  
+The quantitative variables differ in scale and range: prices start from ~35,000 dollars, and can attain 755,000, whereas bedrooms above ground range from 1 to 8 only for instance. 
+This means that scaling our data could be an option to optimise model performance. Note that all quantitative features seem to be integers.  
 
-Looking at our dataframe, we have 67 columns, thus 66 regressors (and then we have to include an intercept) and 1460 observations. Our dataframe seems to contain almost each aspect of a home, but we can imagine that they are not all useful to predict the price. 
 We have to treat missing values before doing analysis. 
 ```{r, echo=TRUE}
 sum(is.na(home))
 ```
-There is no missing value in our dataframe.
+There are no missing values in our dataframe.
 To do correlation matrices, we need numerical or factor variables. 
-
+Looking at the type of each regressor, our dataframe seems to classify them correctly. 
 ```{r}
 # Getting the type of our regressors
-sapply(home, class)
-```
-```{r}
+#sapply(home, class)
 # Other method 
 str(home, give.attr = FALSE)
 ```
 
-Looking at the type of each regressor, our dataframe seems to classify them correctly. As we have many factor columns, we have to transform them into dummies in order to analyze the data. Also, as we have a lot of columns, we will remove the ones that are too correlated among them.
+As we have many factor columns, we have to transform them into dummies in order to analyze the data. Also, as we have a lot of columns, we will remove the ones that are too correlated among them.
 
 
 \textbf{II. Exploratory data analysis / initial modeling}  
+```{r}
+#Given that our features are very highly correlated, when fitting our model, we can assume leaving some out will marginally affect model performance.  
+#Performing PCA on our dataset, then looking at the proportion of variance explained, allows us to confirm our assumption and quantify how many features are useful to use. 
+# Getting numerical features from our dataset
+nums = unlist(lapply(home, is.numeric)) 
+home_numerical = home[ , nums]
+print(home_numerical)
+pca.train = home[2:29,]
+# 
+prin_comp = prcomp(pca.train, scale. = T)
+
+# Compute standard deviation of each principal component
+std_dev = prin_comp$sdev
+
+# Compute variance
+pr_var = std_dev^2
+prop_varex = pr_var/sum(pr_var)
+
+# Cumulative scree plot
+plot(cumsum(prop_varex), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b")
+```
   
 Now that our dataset is correctly formated, we can try to extract trends and relationships among the regressors. Indeed, histograms are a good way to understand the behavior of each regressor. Comparing them is also essential, for instance using pairplots. As the goal is to have an efficient model, we don't want to keep variables that are not correlated with the output, or that are very correlated among them as it leads to redundance. Thus, we could get a first intuition of variables to keep using a correlarion matrix. We will have to deal string regressors before doing so.  
-As our intuition is that the location of the flat has a big impact, we could try to mathematically test this hypothesis.  
+As our intuition is that the location of the flat has a big impact, we will try to mathematically test this hypothesis.  
 
 ```{r}
 # Doing a pairplot for 10 features 
