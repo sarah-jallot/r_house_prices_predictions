@@ -10,10 +10,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 \textbf{I. Introduction}  
-  
-We are given a dataset, containing variables that describle almost comprehensively every aspect of residential homes in Ames, Iowa. For a certain number of homes (the number of lines of our dataframe), the associated price is given. The goal of this analysis is to select the good criteria and the most adapted regression model in order to be able to dertermine the price of other homes in Ames, based on this information.  
-Firt, we have to look at the data, and get a first intuition of an efficient model. Indeed, before starting our full analysis, we have to understand what we are given, check that there are no missing values, and than R classifies correctly each regressor.  
+Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE.     
+The training data consists of a set of 66 categorical and quantitative variables extensively describing 1460 residential homes in Ames, Iowa, and their corresponding price in dollars. 
+We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.      
 
+We will first explore our data to get a first intuition of an efficient model. Preprocessing and understanding the data implies that we understand what we are given, check that there are no missing values, and than R correctly categorises each regressor.  
 ```{r, echo=TRUE}
 # Loading the data set 
 home <- read.csv("train_imputed.csv", row.names=1)
@@ -23,7 +24,9 @@ home <- read.csv("train_imputed.csv", row.names=1)
 # Looking at the dataset 
 head(home)
 ```
-```{r, echo=TRUE}
+The data we are presented with is heterogeneous. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
+The quantitative variables differ in scale and range: prices start from circa 35000 dollars, and can attain several hundred thousand, whereas bedrooms above ground for instance range from one to eight only. This means that we might have to scale our data to make our model more efficient. 
+`````{r, echo=TRUE}
 summary(home)
 ```
 
