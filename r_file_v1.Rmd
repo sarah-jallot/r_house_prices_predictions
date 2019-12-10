@@ -162,6 +162,13 @@ library(dummies)
 home_encoded <- dummy.data.frame(home)
 head(home_encoded)
 ```
+
+Checking that we don't have missing values
+```{r}
+sum(is.na(home_encoded))
+```
+
+  
 Let us perform PCA a second time, this time adding in our dummy-encoded factors. 
 ```{r}
 home_encoded_features = home_encoded[,2:ncol(home_encoded)]
@@ -239,8 +246,23 @@ We will start by a linear model, and then add a Lasso penalization as we have a 
 Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
 
 ```{r}
-# Define a linear model using all features 
-linear_reg=lm(SalePrice~., data=home)
+# Checking that home_encoded has not changed 
+head(home_encoded)
+```
+```{r}
+sum(is.na(home_encoded))
+```
+
+```{r}
+library(fastDummies)
+home_encoded_2 = dummy_cols(home, remove_first_dummy = TRUE, remove_most_frequent_dummy = FALSE) 
+head(home_encoded_2)
+```
+
+
+```{r}
+# Define a linear model using all features : we absolutely need to remove the last dummy 
+linear_reg=lm(SalePrice~., data=home_encoded)
 summary(linear_reg)
 ```
 According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
@@ -250,15 +272,19 @@ According to the T test above, the variables having the most impact to explain S
 - the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat), the basement (e.g. BsmtCond, BsmtQual, BsmtFinType1, TotalBsmtQuSF), the floors, bedrooms and kitchen (e.g. X2ndFlrGr, BedroomAbrGr, KitchenQual, FunctionalTyp), the garage (e.g. GarageType, GarageArea, GarageQual) and security functions (e.g. Fireplaces).  
 According to this test, many variables could be removed from our model without affecting its efficiency to explain SalePrice. In order to choose an appropriate model more precisly, we are going to perform an anova test.  
 
+
+
 ```{r}
 # 3 anova tests with a classical linear model
 library(MASS)
 
 # Forward method : problem with our reg0 that I dont find 
-reg0=lm(SalePrice~1, data=home)
-linear_select_variables_forward = stepAIC(reg0, SalePrice~., trace=T, direction=c("forward"))
+reg0=lm(SalePrice~1, data=home_encoded)
+linear_select_variables_forward = stepAIC(reg0, SalePrice~., data=home_encoded, trace=T, direction=c("forward"))
 summary(linear_select_variables_forward)
 ```
+
+
 ```{r}
 # Backward method
 linear_select_variables_backward = stepAIC(linear_reg,~., trace=TRUE, direction=c("backward") )
@@ -267,7 +293,7 @@ summary(linear_select_variables_backward)
 
 ```{r}
 # Both method
-linear_select_variables_both = stepAIC(reg0, SalePrice~., trace=TRUE, direction=c("both"))
+linear_select_variables_both = stepAIC(reg0, SalePrice~., data=home_encoded, trace=TRUE, direction=c("both"))
 summary(linear_select_variables_both)
 ```  
   
