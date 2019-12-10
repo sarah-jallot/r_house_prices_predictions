@@ -24,6 +24,7 @@ home <- read.csv("train_imputed.csv", row.names=1)
 ```{r, echo=TRUE}
 head(home)
 ```
+
 The data we are handling is heterogeneous, although it is presented in a structured manner. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
   
 `````{r, echo=TRUE}
@@ -67,11 +68,16 @@ pairs(home[1:10])
 ```
 We start off by getting a few insights on interactions between features and price based on our intuition. 
 ```{r}
-plot(SalePrice ~ YrSold, data=home,  xlab="Year Sold", ylab="Sale Price")
+par(mfrow=c(1,2))
+plot(SalePrice ~ YrSold, data=home,  xlab="Year Sold", ylab="Sale Price", main="Plot of Sale Price per Year")
+boxplot(SalePrice ~ YrSold, data=home,  xlab="Year Sold", ylab="Sale Price", main="Boxplot of Sale Price per Year")
 ```
-
 # COMMENT
-A. Numerical analysis
+The variable YrSold, corresponding to the year of sale, does not seem to have an impact on the sale price as is seems to be equally distributed over time when we look at the plot of sale price per year. Looking at the boxplot confirms our intuition that the year of sale does not impact the sale price distribution, as the boxes are almost the same irrespectice of the years.  
+Regarding this variable, we asked ourselves if classifying it as an integer was right or if we sould switched it to a factor variable. In the end, we dediced to keep it as an integer as each new year would produce a new category. Thus, it cannot be a factor variable.  
+  
+A. Numerical analysis  
+  
 ```{r}
 # Plot histogram grid
 nums = unlist(lapply(home, is.numeric))
@@ -124,6 +130,7 @@ For 20 features, we still get an acceptable explained variance of ~96% > 95%.
   
   
 B. Factor analysis  
+  
 For our first contact with the factors, let us get a closer look at level repartition to get an idea of fragmentation within the factors.  
 ```{r}
 par(mfrow=c(1,3))
@@ -136,13 +143,13 @@ barplot(table(home_factors[feature]), main = colnames(home_factors)[feature])}
 Observing the factor columns, we see three types of repartitions.  
 i) Clear surrepresentation of one level versus the others. 
 In Street and Utilities, which are binary, this is conspicuous. From this we infer that these factors won't be very useful in predicting house price in general: nearly all houses will be in the same category along these factors (and for those who aren't, data is too sparse to generalise well).  
-(this is also the case for RoofMatl, Heating, XXXX)  
+(this is also the case for RoofMatl, Heating, BsmtFinType2, Electrical, GarageCond, GarageQual for instance)  
   
 ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We could regroup some of these levels together to improve our predictions.  
-(this is also the case for Exterior1st, Exterior2nd, GarageCond, XXXX)
+(this is also the case for Exterior1st, Exterior2nd, BsmtExposure for instance)
   
 iii) Classic factor repartition with reasonable representation of each modality, as is the case for Housestyle for instance. 
-(this is also the case for XXXX)
+(this is also the case for HeatingQC, GarageFinish, BsmtFinType1 for instance)
 
 As we have many factor columns, we have to transform them into dummies in order to analyze the data. We will remove the ones that are too correlated.  
 ```{r}
@@ -177,10 +184,9 @@ plot(cumsum(prop_varex),
 abline(h=1, col='red')
 abline(v=200, col='black', lty = 3)
 ```
-Keeping 200 of the 262 features, we explain 99% of the variance. Keeping 170 we explain ~96% > 95% of the variance. A priori, we can perform dimensionality reduction without loosing substantial information. 
-
-
-Let us start by making the hypothesis that location, e.g. MS Zoning, has a strong influence over SalePrice - an intuition we derive in part from the correlation matrix-. 
+Keeping 200 of the 262 features, we explain 99% of the variance. Keeping 170 we explain ~96% > 95% of the variance. A priori, we can perform dimensionality reduction without loosing substantial information.  
+  
+Let us start by making the hypothesis that location, e.g. MS Zoning, has a strong influence over SalePrice - an intuition we derive in part from the correlation matrix-.  
 ```{r}
 # 
 library(ggplot2)
@@ -192,7 +198,9 @@ ggplot(home,
            fill = MSZoning)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
 ```
 ## COMMENT on the outliers in RL 
-As we guessed, it appears that houses from the XX areas are less expensive than XXX. Let us confirm this visual impression with a proper test.
+As we guessed, it appears that houses from the RM and RH areas are less expensive than the ones from FV and RL areas. 
+# How it is possible that C (all) is below all other prices ????
+Let us confirm this visual impression with a proper test.
 ```{r}
 mod1<-lm(SalePrice ~ MSZoning-1 , data=home)
 anova(mod1)
@@ -222,46 +230,77 @@ d = density(home$OverallQual)
 lines(d, col='red')
 
 uniform = runif(n=1640,min = 1, max=10)
-qqplot(home$OverallQual, uniform) # does not follow a uniform law but not a normal law either
+qqplot(home$OverallQual, uniform)# does not follow a uniform law but not a normal law either
 ```
-
-
-```{r}
-# pairplot split by location MSZoning ? 
-library(GGally)
-ggpairs(home, aes(colour = MSZoning, alpha = 0.8), title="Pairs plot for home dataset") + theme_grey(base_size = 8)
-```
-
+  
 \textbf{III. Modeling and diagnostics}  
   
-We will start by a linear model, and then add a Lasso penalization as we have a lot of regressors. Using those two models, Anova methods will enable us to select the appropriate regressors.  
+We will start by a linear model, and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
 Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
 
 ```{r}
 # Define a linear model using all features 
-reg=lm(SalePrice~., data=home)
-summary(reg)
+linear_reg=lm(SalePrice~., data=home)
+summary(linear_reg)
 ```
-
+According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
+- the location and neighborhood of the home (e.g. MSZoning, LotArea, LotConfig, LandSlopeSev, Neighborhood)
+- the general aspects of the home (e.g. Condition1Norm, Condition2, BldgType, OverallQual, OverallCond)
+- the construction period (e.g. YearBuilt, YearRemodAdd)
+- the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat), the basement (e.g. BsmtCond, BsmtQual, BsmtFinType1, TotalBsmtQuSF), the floors, bedrooms and kitchen (e.g. X2ndFlrGr, BedroomAbrGr, KitchenQual, FunctionalTyp), the garage (e.g. GarageType, GarageArea, GarageQual) and security functions (e.g. Fireplaces).  
+According to this test, many variables could be removed from our model without affecting its efficiency to explain SalePrice. In order to choose an appropriate model more precisly, we are going to perform an anova test.  
 
 ```{r}
 # 3 anova tests with a classical linear model
+library(MASS)
 
-
+# Forward method : problem with our reg0 that I dont find 
+reg0=lm(SalePrice~1, data=home)
+linear_select_variables_forward = stepAIC(reg0, SalePrice~., trace=T, direction=c("forward"))
+summary(linear_select_variables_forward)
+```
+```{r}
+# Backward method
+linear_select_variables_backward = stepAIC(linear_reg,~., trace=TRUE, direction=c("backward") )
+summary(linear_select_variables_backward)
 ```
 
+```{r}
+# Both method
+linear_select_variables_both = stepAIC(reg0, SalePrice~., trace=TRUE, direction=c("both"))
+summary(linear_select_variables_both)
+```  
+  
+To choose among the three methods, we retrieved the AIC of each model and choose the one with the smallest AIC.  
+```{r}
+extractAIC(linear_select_variables_forward)
+extractAIC(linear_select_variables_backward)
+extractAIC(linear_select_variables_both)
+```
+According to these results, if we decide to run a linear regression, we would choose the model extracted by the bacward method. For this specific model, let's verify that the postulates are verified.   
+  
 ```{r}
 # Validate (or not) the postulates 
 par(mfrow=c(2,2))
-plot(reg, which=1) # P1
-plot(reg, which=3) # P2
-acf(residuals(reg), main= "Auto-correlation plot") # P3
-plot(reg, which=2) # P4
+plot(linear_select_variables_backward, which=1) # P1
+plot(linear_select_variables_backward, which=3) # P2
+acf(residuals(linear_select_variables_backward), main= "Auto-correlation plot") # P3
+plot(linear_select_variables_backward, which=2) # P4
 ```
+# COMMENT to be done once the pb on reg0 is fixed 
+
 
 ```{r}
 # tests to detect outliers
+library(car)
+influenceIndexPlot(linear_select_variables_backward)
 ```
+
+```{r}
+# Finding the outliers of our model
+outlierTest(linear_select_variables_backward)
+```
+  
   
 ```{r}
 # Compare the models with and without outliers (AIC...)
