@@ -85,6 +85,12 @@ for (colname in colnames(home_numerical)) {
   boxplot(home_numerical[,colname], main = colname)}
 ```
 
+```{r}
+library(corrplot)
+R = round(cor(home_numerical),2)
+corrplot(R, method='ellipse')
+```
+
 # COMMENT
 Looking at inter-feature correlations first, we observe that OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
 
@@ -240,34 +246,46 @@ head(home_encoded)
 cat("There are", sum(is.na(home_encoded)), "missing values in home_encoded.")
 ```
 ```{r}
-head(home)
-names = c("Street", "Utilities", "Condition2","Exterior2nd","OverallQual")
-for (name in names){cat(which(colnames(home)==name))}
-
-home_streamlined = home[-c(6 ,9 ,14,24,17)]
+home_preprocessed = read.csv("train_preprocessed.csv")
 ```
 
 ```{r}
-full_model = lm(log(SalePrice)~., data=home_streamlined)
+head(home_preprocessed)
+names = c("Street", "Utilities", "Condition2","Exterior2nd","OverallQual")
+for (name in names){cat(which(colnames(home_preprocessed)==name),",")}
+
+home_streamlined = home_preprocessed[-c(7 ,10 ,15, 25, 18)]
+```
+
+```{r}
+full_model = lm(sqrt(SalePrice)~., data=home_streamlined)
 summary(full_model)
 ```
 According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
 - the location and neighborhood of the home (e.g. MSZoning, LotArea, LotConfig, LandSlopeSev, Neighborhood)
-- the general aspects of the home (e.g. Condition1Norm, Condition2, BldgType, OverallQual, OverallCond)
+- the general aspects of the home (e.g. Condition1Norm, Condition2, BldgType, OverallCond)
 - the construction period (e.g. YearBuilt, YearRemodAdd)
 - the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat), the basement (e.g. BsmtCond, BsmtQual, BsmtFinType1, TotalBsmtQuSF), the floors, bedrooms and kitchen (e.g. X2ndFlrGr, BedroomAbrGr, KitchenQual, FunctionalTyp), the garage (e.g. GarageType, GarageArea, GarageQual) and security functions (e.g. Fireplaces).  
 According to this test, many variables could be removed from our model without affecting its efficiency to explain SalePrice. In order to choose an appropriate model more precisly, we are going to perform an anova test.  
 
 ```{r}
 # Validating the postulates 
-par(mfrow=c(2,2))
+par(mfrow=c(2,3))
 plot(full_model, which=1) # Errors are centered
 plot(full_model, which=3) # Errors are homoscedastic
 acf(residuals(full_model), main= "Auto-correlation plot") # Errors are non-correlated. 
 plot(full_model, which=2) # Errors are gaussian
+plot(full_model, which=5) # Cook's distance
 ```
+
 ```{r}
-home[c(121,186,251,272,326, 376, 399, 667, 945, 1004, 1012, 1188, 1231, 1271, 1276, 1299, 1322, 1371),1:ncol(home)]
+library("lmtest")
+shapiro.test(residuals(full_model))
+bptest(full_model)
+```
+
+```{r}
+home[c(121, 186, 251, 272, 326, 376, 399, 667, 1012, 1188, 1276, 1299, 1322, 1371),1:ncol(home)]
 ```
 
 ```{r}
