@@ -15,16 +15,12 @@ Our objective is to predict the prices of residential homes in Ames, Iowa accura
 The training data consists of a set of 66 categorical and quantitative variables extensively describing 1,460 residential homes in Ames, Iowa, and their corresponding price in dollars. 
 We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.      
 
-We will first explore our data to get a first intuition of an efficient model. Preprocessing and understanding the data implies that we understand what we are given, check that there are no missing values, and than R correctly categorises each regressor.  
+We will first explore our data to get intuition of an efficient model. Understanding and preprocessing the data implies that we understand what we are given, check that there are no missing values, and that R correctly categorises each regressor.  
 ```{r, echo=TRUE}
 # Loading the preprocessed dataset 
 home <- read.csv("train_imputed.csv", row.names=1)
-```
-
-```{r, echo=TRUE}
 head(home)
 ```
-
 The data we are handling is heterogeneous, although it is presented in a structured manner. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
   
 `````{r, echo=TRUE}
@@ -36,12 +32,10 @@ The list of features is extensive: it is probable that not all regressors are us
 The quantitative variables differ in scale and range: prices start from ~35,000 dollars, and can attain 755,000, whereas bedrooms above ground range from 1 to 8 only for instance. 
 This means that scaling our data could optimise model performance.  
   
-We have to treat missing values before doing analysis. 
+We first treat missing values before launching into analysis. 
 ```{r, echo=TRUE}
-sum(is.na(home))
+cat("There are", sum(is.na(home)), "missing values in our dataframe.")
 ```
-There are no missing values in our dataframe.  
-  
 ```{r}
 # Getting regressor types
 str(home, give.attr = FALSE)
@@ -53,7 +47,7 @@ All quantitative features are integers and price, the output, is the only numeri
 Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so. 
 We start by reaffecting the missclassified int categories to factor type: 
 ```{r}
-wrong_categories = c( "MSZoning") #, "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
+#wrong_categories = c( "MSZoning") #, "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
 #for (category in wrong_categories) {home[,category] = as.factor(home[,category])}
 ```
   
@@ -211,10 +205,8 @@ Let us confirm this visual impression with a proper test.
 ```{r}
 mod1<-lm(SalePrice ~ MSZoning-1 , data=home)
 anova(mod1)
-```
 
-```{r}
-# Example of not correlated feature : condition of the garage 
+# Garage condition
 ggplot(home, 
        aes(x=GarageCond, 
            y=SalePrice,
@@ -226,44 +218,38 @@ ggplot(home,
 mod2<-lm(SalePrice ~ GarageCond-1 , data=home)
 anova(mod2)
 ```
-
-
-```{r}
-# Try to find the law of the most correlated variables
-par(mfrow=c(1,2))
-
-hist(home$OverallQual, prob = TRUE)
-d = density(home$OverallQual)
-lines(d, col='red')
-
-uniform = runif(n=1640,min = 1, max=10)
-qqplot(home$OverallQual, uniform)# does not follow a uniform law but not a normal law either
-```
-  
 \textbf{III. Modeling and diagnostics}  
   
-We will start by a linear model, and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
+We will start by a full linear model and check whether the postulates are validated. 
+1. Tenter le log
+2. Virer des features:
+  - PCA
+  - Test d'acf()/ virer à l'intuition les variables les plus corrélées entre elles. 
+  - Backward/forward regression 
+  
+and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
 Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
 
 ```{r}
-# Checking that home_encoded has not changed 
+# Checking that home_encoded has not changed
 head(home_encoded)
 ```
+
+
 ```{r}
-sum(is.na(home_encoded))
+cat("There are", sum(is.na(home_encoded)), "missing values in home_encoded.")
+```
+```{r}
+head(home)
+names = c("Street", "Utilities", "Condition2","Exterior2nd","OverallQual")
+for (name in names){cat(which(colnames(home)==name))}
+
+home_streamlined = home[-c(6 ,9 ,14,24,17)]
 ```
 
 ```{r}
-library(fastDummies)
-home_encoded_2 = dummy_cols(home, remove_first_dummy = TRUE, remove_most_frequent_dummy = FALSE) 
-head(home_encoded_2)
-```
-
-
-```{r}
-# Define a linear model using all features : we absolutely need to remove the last dummy 
-linear_reg=lm(SalePrice~., data=home_encoded)
-summary(linear_reg)
+full_model = lm(log(SalePrice)~., data=home_streamlined)
+summary(full_model)
 ```
 According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
 - the location and neighborhood of the home (e.g. MSZoning, LotArea, LotConfig, LandSlopeSev, Neighborhood)
@@ -272,15 +258,25 @@ According to the T test above, the variables having the most impact to explain S
 - the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat), the basement (e.g. BsmtCond, BsmtQual, BsmtFinType1, TotalBsmtQuSF), the floors, bedrooms and kitchen (e.g. X2ndFlrGr, BedroomAbrGr, KitchenQual, FunctionalTyp), the garage (e.g. GarageType, GarageArea, GarageQual) and security functions (e.g. Fireplaces).  
 According to this test, many variables could be removed from our model without affecting its efficiency to explain SalePrice. In order to choose an appropriate model more precisly, we are going to perform an anova test.  
 
-
+```{r}
+# Validating the postulates 
+par(mfrow=c(2,2))
+plot(full_model, which=1) # Errors are centered
+plot(full_model, which=3) # Errors are homoscedastic
+acf(residuals(full_model), main= "Auto-correlation plot") # Errors are non-correlated. 
+plot(full_model, which=2) # Errors are gaussian
+```
+```{r}
+home[c(121,186,251,272,326, 376, 399, 667, 945, 1004, 1012, 1188, 1231, 1271, 1276, 1299, 1322, 1371),1:ncol(home)]
+```
 
 ```{r}
 # 3 anova tests with a classical linear model
 library(MASS)
 
 # Forward method : problem with our reg0 that I dont find 
-reg0=lm(SalePrice~1, data=home_encoded)
-linear_select_variables_forward = stepAIC(reg0, SalePrice~., data=home_encoded, trace=T, direction=c("forward"))
+reg0=lm(SalePrice~1, data=home)
+linear_select_variables_forward = stepAIC(reg0, SalePrice~., data=home, trace=T, direction=c("forward"))
 summary(linear_select_variables_forward)
 ```
 
