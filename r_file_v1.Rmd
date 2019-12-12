@@ -156,12 +156,7 @@ As we have many factor columns, we have to transform them into dummies in order 
 plot(home_factors[1:10])
 ```
 
-We implement dummy categorical encoding to get rid of the alphabetical levels automatically implemented by R.  
-```{r}
-library(dummies)
-home_encoded <- dummy.data.frame(home)
-head(home_encoded)
-```
+
 
 Checking that we don't have missing values
 ```{r}
@@ -252,8 +247,7 @@ home_preprocessed = read.csv("train_preprocessed.csv")
 ```{r}
 head(home_preprocessed)
 names = c("Street", "Utilities", "Condition2","Exterior2nd","OverallQual")
-for (name in names){cat(which(colnames(home_preprocessed)==name),",")}
-
+for (name in names){cat(which(colnames(home_preprocessed)==name)," ")}
 home_streamlined = home_preprocessed[-c(7 ,10 ,15, 25, 18)]
 ```
 
@@ -282,10 +276,38 @@ plot(full_model, which=5) # Cook's distance
 library("lmtest")
 shapiro.test(residuals(full_model))
 bptest(full_model)
+home[c(121, 186, 251, 272, 326, 376, 399, 667, 1012, 1188, 1276, 1299, 1322, 1371),1:ncol(home)]
+```
+We implement dummy categorical encoding to get rid of the alphabetical levels automatically implemented by R. 
+```{r}
+library(dummies)
+home_encoded <- dummy.data.frame(home_streamlined)
+head(home_encoded)
 ```
 
 ```{r}
-home[c(121, 186, 251, 272, 326, 376, 399, 667, 1012, 1188, 1276, 1299, 1322, 1371),1:ncol(home)]
+pca.train = home_encoded[,3:ncol(home_encoded)]
+prin_comp = prcomp(pca.train, center = TRUE, scale. = TRUE)
+
+# Compute standard deviation of each principal component
+std_dev = prin_comp$sdev
+
+# Compute variance
+pr_var = std_dev^2
+prop_varex = pr_var/sum(pr_var)
+
+# Cumulative scree plot
+plot(cumsum(prop_varex), 
+     xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained",
+     type = "b")
+
+abline(h=1, col='red')
+abline(v=200, col='black', lty = 3)
+cumsum(prop_varex[150])
+```
+```{r}
+prin_comp$x
 ```
 
 ```{r}
