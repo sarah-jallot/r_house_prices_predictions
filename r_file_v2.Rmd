@@ -22,7 +22,6 @@ We will first explore our data to get intuition of an efficient model. Understan
 home <- read.csv("train_preprocessed.csv", row.names=1)
 head(home)
 ```
-  
 The data we are handling is heterogeneous, although it is presented in a structured manner. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
   
 `````{r, echo=TRUE}
@@ -45,67 +44,65 @@ cat("There are", sum(is.na(home)), "missing values in our dataframe.")
 # Getting regressor types
 str(home, give.attr = FALSE)
 ```
-  
-# COMMENT TO BE CHECKED
-From this summary, R appears to classify some features as integers when they could be considered as factors: mainly factors related to areas, like MSZoning.  
-After debating whether we would consider Years as categories, we decided against given that we might come across a previously unencountered year in the test data which would nullify the interest of using year as a factor. ## A VOIR check whether we stay within the same range for year sold or if there are new years! 
+First intuition: looking at this dataset, we can see that we have a lot of regressors and that some might be more relevant than others to explain the SalePrice. For instance, the variable MSZoning is expected to have much more impact on the price that the variable Heating, as the heating system is something that can be changed, whereas the location is permanent.  
+Thus, we will perform different types of analysis to keep only the most relevant variables in our model. 
+
+Additionally, R appears to classify some features as integers when they could be considered as factors: mainly factors related to areas and quality ratings. After debating whether we would consider Years as categories, we decided against given that we might come across a previously unencountered year in the test data which would nullify the interest of using year as a factor.
   
 All quantitative features are integers and price, the output, is the only numeric.  
 Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so.  
-We start by reaffecting the missclassified int categories to factor type:   
-
-```{r, echo=TRUE}
-#wrong_categories = c( "MSZoning") #, "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
-#for (category in wrong_categories) {home[,category] = as.factor(home[,category])}
+```{r}
+cat_to_reaffect = c( "OverallQual", "OverallCond", "MoSold", "MSSubClass") # "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
+for (category in cat_to_reaffect) {home[,category] = as.factor(home[,category])}
+head(home)
 ```
-  
-First intuition: looking at this dataset, we can see that we have a lot of regressors and that some might be more relevant than others to explain the SalePrice. For instance, the variable MSZoning is expected to have much more impact on the price that the variable Heating, as the heating system is something that can be changed, whereas the location is permanent.  
-Thus, we will perform different types of analysis to keep only the most relevant variables in our model.   
-  
-  
+
 \textbf{II. Exploratory data analysis / initial modeling} 
 
-1 Intution and examples 
-
-As we said previously, we have the intution that some variables are particularly relevant to predict SalePrice, and that others are not. In this part
-As our intuition is that the location of the flat has a big impact, we will test this hypothesis.  
-
-Example of a variable that seems to have an impact on SalePrice (MSZoning) vs one that doesn't seem to have an impact (YrSold). 
-```{r, echo=TRUE}
-par(mfrow=c(1,2))
-boxplot(SalePrice ~ MSZoning, data=home,  xlab="MSZoning", ylab="Sale Price", main="Boxplot of Sale Price based on MSZoning")
-boxplot(SalePrice ~ YrSold, data=home,  xlab="Year Sold", ylab="Sale Price", main="Boxplot of Sale Price per Year")
-```
-  
-Compared to MSZoning for which the SalePrice distribution differs for each zone, the variable YrSold, corresponding to the year of sale, does not seem to have an impact on the sale price as it seems to be equally distributed over time when we look at the plot of sale price per year. Looking at the boxplot confirms our intuition that the year of sale does not impact the sale price distribution, as the boxes are almost the same irrespectice of the years.  
-Regarding this variable, we asked ourselves if classifying it as an integer was right or if we sould switched it to a factor variable. In the end, we dediced to keep it as an integer as each new year would produce a new category. Thus, it cannot be a factor variable.  
-  
-2. Numerical analysis  
-
-To do correlation matrices, we need numerical or factor variables.  
+1. Numerical analysis  
 We will extract trends and relationships among the regressors. Comparing them is also essential, for instance using pairplots.
-  
 ```{r, echo=TRUE}
-# Exactracting all numerical variables
+# Extracting all numerical variables
 nums = unlist(lapply(home, is.numeric))
 home_numerical = (home[ , nums])
 ```
 
+We first set out to observe the output, SalePrice. 
 ```{r, echo=TRUE}
-# Plotting the distribution and the boxplot for each of these variables
 par(mfrow=c(1,2))
-for (colname in colnames(home_numerical)) {
-  hist(home_numerical[,colname], main = colname)
-  boxplot(home_numerical[,colname], main = colname)}
+# A few observations on SalePrice. 
+hist(home_numerical$SalePrice, main = "SalePrice")
+boxplot(home_numerical$SalePrice, main = "SalePrice")
 ```
 
-```{r, echo=TRUE}
-# Plotting the correlation matrix
+```{r}
+cat("The mean of Saleprice is", mean(home_numerical$SalePrice), "whereas the median is higher at", median(home_numerical$SalePrice), "indicating that extreme values skew our data to the right.")
+```
+SalePrice is volatile with many houses to the left hand side, but with an important number of outliers to the right with extreme values which skew the data. To smoothen the output and approach a normal distribution, we will consider the log when fitting our model. 
+```{r}
+par(mfrow=c(1,3))
+hist(log(home_numerical[,"SalePrice"]))
+boxplot(log(home_numerical[,"SalePrice"]))
+qqnorm(log(home_numerical$SalePrice))
+```
+log(SalePrice) is pretty close to a normal distribution, except for extreme values. 
+
+```{r}
+# Correlation matrix for numerical features
 library(corrplot)
 R = round(cor(home_numerical),2)
 corrplot(R, method='ellipse')
 ```
-  
+Our intuition is that three feature types mainly drive SalePrices: location, area/surface and quality. Let's start by analysing the numerical variable LotArea.  
+```{r, echo=TRUE}
+par(mfrow=c(1,2))
+# Area
+hist(home_numerical$LotArea, main = "LotArea")
+boxplot(home_numerical$LotArea, main = "LotArea")
+```
+We believe that areas, particularly LotArea, will be important when predicting SalePrice. 
+Most areas are located within [-2,2] in our pre-processed dataset, with many outliers towards the left- or the right-hand-side. 
+
 Looking at inter-feature correlations first, we observe that OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
 
 The numerical features that are the most correlated with SalePrice are OverallQual, TotalBsmtSE, X1stElrSF, GrLivArea, GarageCars and GarageArea. On the contrary, MoSold, YrSold and BsmtHalfBath are poorly correlated to SalePrice. As the correlation matrix does not take into account interactions between our features in predicting sales price, we will not infer from this which variables we will keep in our final model.  
@@ -118,19 +115,6 @@ Because PCA works best with (scaled) numerical data, we will perform it on our s
 home_numerical_output = home_numerical$SalePrice
 home_numerical_features = home_numerical[,2:ncol(home_numerical)] # we will perform the PCA analysis on this dataset. 
 ```
-
-```{r, echo=TRUE}
-data.frame(home_numerical_output)
-```
-
-
-```{r, echo=TRUE}
-nrow(home_numerical_output)
-```
-```{r, echo=TRUE}
-head(home_numerical_output)
-```
-
 
 ```{r, echo=TRUE}
 pca.train = home_numerical_features
@@ -157,69 +141,35 @@ For 20 features, we still get an acceptable explained variance of ~96% > 95%.
   
   
 3. Factor analysis  
-  
 For our first contact with the factors, let us get a closer look at level repartition to get an idea of fragmentation within the factors.  
 ```{r, echo=TRUE}
 par(mfrow=c(1,3))
-# Plotting factor repartition 
+# Getting our factors
 factors = unlist(lapply(home, is.factor))
 home_factors = home[,factors]
-for (feature in 1:ncol(home_factors)){
-barplot(table(home_factors[feature]), main = colnames(home_factors)[feature])}
+
+# Street 
+barplot(table(home_factors$Street), main = "Street")
+# Neighbourhood
+barplot(table(home_factors$Neighborhood), main = "Neighbourhood")
+# Garage Finish
+barplot(table(home_factors$GarageFinish), main = "GarageFinish")
 ```
 Observing the factor columns, we see three types of repartitions.  
 i) Clear surrepresentation of one level versus the others. 
 In Street and Utilities, which are binary, this is conspicuous. From this we infer that these factors won't be very useful in predicting house price in general: nearly all houses will be in the same category along these factors (and for those who aren't, data is too sparse to generalise well).  
-(this is also the case for RoofMatl, Heating, BsmtFinType2, Electrical, GarageCond, GarageQual for instance)  
+Note that this is also the case for RoofMatl, Heating, BsmtFinType2, Electrical, GarageCond, GarageQual.  
   
 ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We could regroup some of these levels together to improve our predictions.  
-(this is also the case for Exterior1st, Exterior2nd, BsmtExposure for instance)
+Note that this is also the case for Exterior1st, Exterior2nd, BsmtExposure. 
   
 iii) Classic factor repartition with reasonable representation of each modality, as is the case for Housestyle for instance. 
-(this is also the case for HeatingQC, GarageFinish, BsmtFinType1 for instance)
+Note that this is also the case for HeatingQC, GarageFinish, BsmtFinType1.
 
-As we have many factor columns, we have to transform them into dummies in order to analyze the data. We will remove the ones that are too correlated.  
-  
-We implement dummy categorical encoding to get rid of the alphabetical levels automatically implemented by R.  
-```{r, echo=TRUE}
-library(dummies)
-home_encoded <- dummy.data.frame(home)
-head(home_encoded)
-```
-
-Checking that we don't have missing values
-```{r, echo=TRUE}
-sum(is.na(home_encoded))
-```
-
-  
-Let us perform PCA a second time, this time adding in our dummy-encoded factors. 
-```{r, echo=TRUE}
-home_encoded_features = home_encoded[,2:ncol(home_encoded)]
-pca.train = home_encoded_features # excluding SalePrice from the PCA
-prin_comp = prcomp(pca.train, center = TRUE, scale. = TRUE)
-
-# Compute standard deviation of each principal component
-std_dev = prin_comp$sdev
-
-# Compute variance
-pr_var = std_dev^2
-prop_varex = pr_var/sum(pr_var)
-
-# Cumulative scree plot
-plot(cumsum(prop_varex), 
-     xlab = "Principal Component", 
-     ylab = "Cumulative Proportion of Variance Explained",
-     type = "b")
-
-abline(h=1, col='red')
-abline(v=200, col='black', lty = 3)
-```
-Keeping 200 of the 262 features, we explain 99% of the variance. Keeping 170 we explain ~96% > 95% of the variance. A priori, we can perform dimensionality reduction without loosing substantial information.  
-  
-Let us start by making the hypothesis that location, e.g. MS Zoning, has a strong influence over SalePrice - an intuition we derive in part from the correlation matrix-.  
-```{r, echo=TRUE}
-# 
+Intuitively, we said that both location and overall quality will impact SalePrice significantly. Let us check this with anova and ancova tests. 
+```{r}
+# Area
+par(mfrow=c(1,2))
 library(ggplot2)
 ggplot(home, 
        aes(x=MSZoning, 
@@ -227,49 +177,52 @@ ggplot(home,
            colour=MSZoning, 
            group = MSZoning, 
            fill = MSZoning)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+
+# Overall quality 
+ggplot(home, 
+       aes(x=OverallQual, 
+           y=SalePrice, 
+           colour= OverallQual, 
+           group = OverallQual, 
+           fill = OverallQual)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+
+
+# Year sold
+boxplot(SalePrice~YrSold, data = home, xlab = "Year Sold", ylab = "SalePrice")
 ```
-## COMMENT on the outliers in RL 
-As we guessed, it appears that houses from the RM and RH areas are less expensive than the ones from FV and RL areas. 
-# How it is possible that C (all) is below all other prices ????
-Let us confirm this visual impression with a proper test.
-```{r, echo=TRUE}
+It appears that houses from the RM and RH areas are less expensive than the ones from FV and RL areas.
+```{r}
+# Anova on area
 mod1<-lm(SalePrice ~ MSZoning-1 , data=home)
 anova(mod1)
 
-# Garage condition
-ggplot(home, 
-       aes(x=GarageCond, 
-           y=SalePrice,
-           colour=GarageCond, 
-           group = GarageCond, 
-           fill = GarageCond)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+# Anova on quality
+mod2<-lm(SalePrice ~ OverallQual-1 , data=home)
+anova(mod2)
 ```
+Anova tests seem to show that both area and overall quality have a strong effect on SalePrice. However, here we have not accounted for the interaction between MSzoning and overall quality: to validate our conclusions, we must show that it is not significant with an ANCOVA test. 
+```{r}
+# Ancova on quality and area
+mod3 = lm(SalePrice~1 + MSZoning + OverallQual + OverallQual:MSZoning, data = home)
+anova(mod3)
+```
+Since the last p-value is greater than 0.05, we will consider that SalePrice will depend in a similar manner on OverallQual and MSZoning. 
 
 \textbf{III. Modeling and diagnostics}  
-  
-We will start by a full linear model and check whether the postulates are validated. 
-1. Tenter le log
-2. Virer des features:
-  - PCA
-  - Test d'acf()/ virer à l'intuition les variables les plus corrélées entre elles. 
-  - Backward/forward regression 
-  
-and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
+Given the volatility of Saleprice, we will work on its logarithm to smooth its distribution and improve estimated residuals homoscedasticity. 
+After manually removing poorly informative factors and other highly correlated numerical features, we start by fitting a full linear model to predict log(SalePrice) and check whether the postulates are validated. 
+
+XXX and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
 Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
 
 ```{r, echo=TRUE}
-cat("There are", sum(is.na(home_encoded)), "missing values in home_encoded.")
+col_to_remove = c("Street", "Utilities", "Condition2","Exterior2nd", "Electrical", "BldgType") 
+for (name in col_to_remove){cat(which(colnames(home)==name)," ")}
+home_streamlined = home[-c(6 ,9 ,14, 24, 41, 15)]
 ```
-
+Given that Electrical and BldgType were highly correlated with other features and were poorly informative factors, we removed them from the dataset. 
 ```{r, echo=TRUE}
-names = c("Street", "Utilities", "Condition2","Exterior2nd","OverallQual")
-for (name in names){cat(which(colnames(home)==name),",")}
-
-home_streamlined = home[-c(6 ,9 ,14, 24, 17)]
-```
-
-```{r, echo=TRUE}
-full_model = lm(log(SalePrice)~., data=home_streamlined)
+full_model = lm(log(SalePrice)~., data = home_streamlined)
 summary(full_model)
 ```
 
