@@ -186,7 +186,6 @@ ggplot(home,
            group = OverallQual, 
            fill = OverallQual)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
 
-
 # Year sold
 boxplot(SalePrice~YrSold, data = home, xlab = "Year Sold", ylab = "SalePrice")
 ```
@@ -219,40 +218,38 @@ Then, we will compare our models using criteria seen in class. We will also test
 col_to_remove = c("Street", "Utilities", "Condition2","Exterior2nd", "Electrical", "BldgType") 
 for (name in col_to_remove){cat(which(colnames(home)==name)," ")}
 home_streamlined = home[-c(6 ,9 ,14, 24, 41, 15)]
+
+# Removing weird observations
+home_streamlined = home_streamlined[-c(121, 186, 251, 272, 326, 376, 399, 667, 1012, 1188, 1276, 1299, 1322, 1371, 527, 526, 525), 1:ncol(home_streamlined)]
 ```
 Given that Electrical and BldgType were highly correlated with other features and were poorly informative factors, we removed them from the dataset. 
 ```{r, echo=TRUE}
 full_model = lm(log(SalePrice)~., data = home_streamlined)
 summary(full_model)
 ```
-
 According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
-- the location and neighborhood of the home (e.g. MSZoning, LotArea, LotConfig, LandSlopeSev, Neighborhood)
-- the general aspects of the home (e.g. Condition1Norm, Condition2, BldgType, OverallCond)
+- the location of the home (e.g. MSZoning, Neighborhood)
+- the area of the home (LotArea)
+- overall quality and condition ( OverallQual, OverallCond)
+- # Comment/reword the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat) and security functions (e.g. Fireplaces).  
 - the construction period (e.g. YearBuilt, YearRemodAdd)
-- the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat), the basement (e.g. BsmtCond, BsmtQual, BsmtFinType1, TotalBsmtQuSF), the floors, bedrooms and kitchen (e.g. X2ndFlrGr, BedroomAbrGr, KitchenQual, FunctionalTyp), the garage (e.g. GarageType, GarageArea, GarageQual) and security functions (e.g. Fireplaces).  
-According to this test, many variables could be removed from our model without affecting its efficiency to explain SalePrice. In order to choose an appropriate model more precisly, we are going to perform an anova test.  
 
+Many variables could be removed from our model while marginally affecting its efficiency to explain SalePrice. 
 ```{r, echo=TRUE}
 # Validating the postulates 
-par(mfrow=c(2,3))
+par(mfrow=c(3,3))
 plot(full_model, which=1) # Errors are centered
 plot(full_model, which=3) # Errors are homoscedastic
 acf(residuals(full_model), main= "Auto-correlation plot") # Errors are non-correlated. 
 plot(full_model, which=2) # Errors are gaussian
 plot(full_model, which=5) # Cook's distance
 ```
-
 ```{r, echo=TRUE}
-home[c(121, 186, 251, 272, 326, 376, 399, 667, 1012, 1188, 1276, 1299, 1322, 1371),1:ncol(home)]
-```
 
-```{r, echo=TRUE}
 # Reducing our number of features using the 3 selection methods seen in class (forward, backward, both)
 library(MASS)
-
 # Forward method :
-linear_select_variables_forward = stepAIC(full_model, data=home_streamlined, trace=T, direction=c("forward"))
+linear_select_variables_forward = stepAIC(full_model, data=home_streamlined, trace=T, direction=c("forward"), verbose = FALSE)
 summary(linear_select_variables_forward)
 ```
 
@@ -275,7 +272,7 @@ extractAIC(linear_select_variables_forward)
 extractAIC(linear_select_variables_backward)
 extractAIC(linear_select_variables_both)
 ```
-According to these results, if we decide to run a linear regression, we would choose the model extracted by the bacward method (or the both method as they return the same AIC). For this specific model, let's verify that the postulates are verified.   
+According to these results, if we decide to run a linear regression, we would choose the model extracted by the backward method. For this specific model, let's verify that the postulates are verified.   
 
 ```{r, echo=TRUE}
 # Displaying our model 
@@ -294,15 +291,10 @@ plot(linear_select_variables_backward, which=5) # Cook
 ```
   
 ```{r, echo=TRUE}
-# tests to detect outliers
 library(car)
+influenceIndexPlot(full_model)
 influenceIndexPlot(linear_select_variables_backward)
 ```
-
-```{r}
-influenceIndexPlot(full_model)
-```
-
 
 ```{r, echo=TRUE}
 # Finding the outliers of our model
@@ -312,14 +304,12 @@ outlierTest(linear_select_variables_backward)
 ```{r, echo=TRUE}
 # Compare the models with and without outliers (AIC...)
 
-
 # Doing the same selection but removing the outliers 
 
-home_no_outliers <- home_streamlined[-c(524, 633, 1325, 463, 969, 589, 1454, 971), ]
+home_no_outliers = home_streamlined[-c(524, 633, 1325, 463, 969, 589, 1454, 971), ]
 
 linear_backward_without_outliers <- lm(formula = sqrt(SalePrice) ~ MSZoning + LotArea + LotShape + 
-    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
-    BldgType + HouseStyle + OverallCond + YearBuilt + YearRemodAdd + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + HouseStyle + OverallCond + YearBuilt + YearRemodAdd + 
     RoofMatl + Exterior1st + MasVnrType + ExterQual + ExterCond + 
     Foundation + BsmtQual + BsmtCond + BsmtExposure + BsmtFinType1 + 
     BsmtUnfSF + TotalBsmtSF + HeatingQC + X2ndFlrSF + GrLivArea + 
