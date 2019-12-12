@@ -1,0 +1,433 @@
+---
+title: "Regression - Final project"
+author: "Victoire de Termont and Sarah Jallot"
+date: "12/3/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\textbf{I. Introduction} 
+  
+Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE on test data.     
+The training data consists of a set of 66 categorical and quantitative variables extensively describing 1,460 residential homes in Ames, Iowa, and their corresponding price in dollars. 
+We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.     
+  
+We will first explore our data to get intuition of an efficient model. Understanding and preprocessing the data implies that we understand what we are given, check that there are no missing values, and that R correctly categorises each regressor.  
+  
+```{r, echo=TRUE}
+# Loading the preprocessed dataset 
+home <- read.csv("train_preprocessed.csv", row.names=1)
+head(home)
+```
+  
+The data we are handling is heterogeneous, although it is presented in a structured manner. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
+  
+`````{r, echo=TRUE}
+summary(home)
+```
+  
+In our dataframe, there are 67 columns including the price, meaning a full model would include 66 features and an intercept, and 1,460 observations.  
+The list of features is extensive: it is probable that not all regressors are useful to predict house price.  
+  
+The quantitative variables differ in scale and range: prices start from ~35,000 dollars, and can attain 755,000, whereas bedrooms above ground range from 1 to 8 only for instance.  
+This means that scaling our data could optimise model performance.  
+  
+We first treat missing values before launching into analysis.  
+  
+```{r, echo=TRUE}
+cat("There are", sum(is.na(home)), "missing values in our dataframe.")
+```
+
+```{r, echo=TRUE}
+# Getting regressor types
+str(home, give.attr = FALSE)
+```
+  
+# COMMENT TO BE CHECKED
+From this summary, R appears to classify some features as integers when they could be considered as factors: mainly factors related to areas, like MSZoning.  
+After debating whether we would consider Years as categories, we decided against given that we might come across a previously unencountered year in the test data which would nullify the interest of using year as a factor. ## A VOIR check whether we stay within the same range for year sold or if there are new years! 
+  
+All quantitative features are integers and price, the output, is the only numeric.  
+Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so.  
+We start by reaffecting the missclassified int categories to factor type:   
+
+```{r, echo=TRUE}
+#wrong_categories = c( "MSZoning") #, "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
+#for (category in wrong_categories) {home[,category] = as.factor(home[,category])}
+```
+  
+First intuition: looking at this dataset, we can see that we have a lot of regressors and that some might be more relevant than others to explain the SalePrice. For instance, the variable MSZoning is expected to have much more impact on the price that the variable Heating, as the heating system is something that can be changed, whereas the location is permanent.  
+Thus, we will perform different types of analysis to keep only the most relevant variables in our model.   
+  
+  
+\textbf{II. Exploratory data analysis / initial modeling} 
+
+1 Intution and examples 
+
+As we said previously, we have the intution that some variables are particularly relevant to predict SalePrice, and that others are not. In this part
+As our intuition is that the location of the flat has a big impact, we will test this hypothesis.  
+
+Example of a variable that seems to have an impact on SalePrice (MSZoning) vs one that doesn't seem to have an impact (YrSold). 
+```{r, echo=TRUE}
+par(mfrow=c(1,2))
+boxplot(SalePrice ~ MSZoning, data=home,  xlab="MSZoning", ylab="Sale Price", main="Boxplot of Sale Price based on MSZoning")
+boxplot(SalePrice ~ YrSold, data=home,  xlab="Year Sold", ylab="Sale Price", main="Boxplot of Sale Price per Year")
+```
+  
+Compared to MSZoning for which the SalePrice distribution differs for each zone, the variable YrSold, corresponding to the year of sale, does not seem to have an impact on the sale price as it seems to be equally distributed over time when we look at the plot of sale price per year. Looking at the boxplot confirms our intuition that the year of sale does not impact the sale price distribution, as the boxes are almost the same irrespectice of the years.  
+Regarding this variable, we asked ourselves if classifying it as an integer was right or if we sould switched it to a factor variable. In the end, we dediced to keep it as an integer as each new year would produce a new category. Thus, it cannot be a factor variable.  
+  
+2. Numerical analysis  
+
+To do correlation matrices, we need numerical or factor variables.  
+We will extract trends and relationships among the regressors. Comparing them is also essential, for instance using pairplots.
+  
+```{r, echo=TRUE}
+# Exactracting all numerical variables
+nums = unlist(lapply(home, is.numeric))
+home_numerical = (home[ , nums])
+```
+
+```{r, echo=TRUE}
+# Plotting the distribution and the boxplot for each of these variables
+par(mfrow=c(1,2))
+for (colname in colnames(home_numerical)) {
+  hist(home_numerical[,colname], main = colname)
+  boxplot(home_numerical[,colname], main = colname)}
+```
+
+```{r, echo=TRUE}
+# Plotting the correlation matrix
+library(corrplot)
+R = round(cor(home_numerical),2)
+corrplot(R, method='ellipse')
+```
+  
+Looking at inter-feature correlations first, we observe that OverallQual is correlated to may other features on the correlation matrix. This indicates that there is a link between it and other variables. This is encouraging as it means that we would be able to remove some columns without losing too much information.
+
+The numerical features that are the most correlated with SalePrice are OverallQual, TotalBsmtSE, X1stElrSF, GrLivArea, GarageCars and GarageArea. On the contrary, MoSold, YrSold and BsmtHalfBath are poorly correlated to SalePrice. As the correlation matrix does not take into account interactions between our features in predicting sales price, we will not infer from this which variables we will keep in our final model.  
+
+## PCA 
+Given that we have 67 columns, of which 29 are quantitative, let's explore the possibilities we have to reduce our dataframe.  
+Because PCA works best with (scaled) numerical data, we will perform it on our scaled numerical feature columns. 
+```{r, echo=TRUE}
+# home_numerical_output = home_numerical$SalePrice
+home_numerical_output = home_numerical$SalePrice
+home_numerical_features = home_numerical[,2:ncol(home_numerical)] # we will perform the PCA analysis on this dataset. 
+```
+
+```{r, echo=TRUE}
+data.frame(home_numerical_output)
+```
+
+
+```{r, echo=TRUE}
+nrow(home_numerical_output)
+```
+```{r, echo=TRUE}
+head(home_numerical_output)
+```
+
+
+```{r, echo=TRUE}
+pca.train = home_numerical_features
+prin_comp = prcomp(pca.train, center = TRUE, scale. = TRUE)
+
+# Compute standard deviation of each principal component
+std_dev = prin_comp$sdev
+
+# Compute variance
+pr_var = std_dev^2
+prop_varex = pr_var/sum(pr_var)
+
+# Cumulative scree plot
+plot(cumsum(prop_varex), 
+     xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained",
+     type = "b")
+
+abline(h=1, col='red')
+abline(v=23, col='black', lty = 3)
+```
+23 of our 28 numerical features account for 99% of the variance.  
+For 20 features, we still get an acceptable explained variance of ~96% > 95%.
+  
+  
+3. Factor analysis  
+  
+For our first contact with the factors, let us get a closer look at level repartition to get an idea of fragmentation within the factors.  
+```{r, echo=TRUE}
+par(mfrow=c(1,3))
+# Plotting factor repartition 
+factors = unlist(lapply(home, is.factor))
+home_factors = home[,factors]
+for (feature in 1:ncol(home_factors)){
+barplot(table(home_factors[feature]), main = colnames(home_factors)[feature])}
+```
+Observing the factor columns, we see three types of repartitions.  
+i) Clear surrepresentation of one level versus the others. 
+In Street and Utilities, which are binary, this is conspicuous. From this we infer that these factors won't be very useful in predicting house price in general: nearly all houses will be in the same category along these factors (and for those who aren't, data is too sparse to generalise well).  
+(this is also the case for RoofMatl, Heating, BsmtFinType2, Electrical, GarageCond, GarageQual for instance)  
+  
+ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We could regroup some of these levels together to improve our predictions.  
+(this is also the case for Exterior1st, Exterior2nd, BsmtExposure for instance)
+  
+iii) Classic factor repartition with reasonable representation of each modality, as is the case for Housestyle for instance. 
+(this is also the case for HeatingQC, GarageFinish, BsmtFinType1 for instance)
+
+As we have many factor columns, we have to transform them into dummies in order to analyze the data. We will remove the ones that are too correlated.  
+  
+We implement dummy categorical encoding to get rid of the alphabetical levels automatically implemented by R.  
+```{r, echo=TRUE}
+library(dummies)
+home_encoded <- dummy.data.frame(home)
+head(home_encoded)
+```
+
+Checking that we don't have missing values
+```{r, echo=TRUE}
+sum(is.na(home_encoded))
+```
+
+  
+Let us perform PCA a second time, this time adding in our dummy-encoded factors. 
+```{r, echo=TRUE}
+home_encoded_features = home_encoded[,2:ncol(home_encoded)]
+pca.train = home_encoded_features # excluding SalePrice from the PCA
+prin_comp = prcomp(pca.train, center = TRUE, scale. = TRUE)
+
+# Compute standard deviation of each principal component
+std_dev = prin_comp$sdev
+
+# Compute variance
+pr_var = std_dev^2
+prop_varex = pr_var/sum(pr_var)
+
+# Cumulative scree plot
+plot(cumsum(prop_varex), 
+     xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained",
+     type = "b")
+
+abline(h=1, col='red')
+abline(v=200, col='black', lty = 3)
+```
+Keeping 200 of the 262 features, we explain 99% of the variance. Keeping 170 we explain ~96% > 95% of the variance. A priori, we can perform dimensionality reduction without loosing substantial information.  
+  
+Let us start by making the hypothesis that location, e.g. MS Zoning, has a strong influence over SalePrice - an intuition we derive in part from the correlation matrix-.  
+```{r, echo=TRUE}
+# 
+library(ggplot2)
+ggplot(home, 
+       aes(x=MSZoning, 
+           y=SalePrice, 
+           colour=MSZoning, 
+           group = MSZoning, 
+           fill = MSZoning)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+```
+## COMMENT on the outliers in RL 
+As we guessed, it appears that houses from the RM and RH areas are less expensive than the ones from FV and RL areas. 
+# How it is possible that C (all) is below all other prices ????
+Let us confirm this visual impression with a proper test.
+```{r, echo=TRUE}
+mod1<-lm(SalePrice ~ MSZoning-1 , data=home)
+anova(mod1)
+
+# Garage condition
+ggplot(home, 
+       aes(x=GarageCond, 
+           y=SalePrice,
+           colour=GarageCond, 
+           group = GarageCond, 
+           fill = GarageCond)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+```
+
+\textbf{III. Modeling and diagnostics}  
+  
+We will start by a full linear model and check whether the postulates are validated. 
+1. Tenter le log
+2. Virer des features:
+  - PCA
+  - Test d'acf()/ virer à l'intuition les variables les plus corrélées entre elles. 
+  - Backward/forward regression 
+  
+and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
+Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
+
+```{r, echo=TRUE}
+cat("There are", sum(is.na(home_encoded)), "missing values in home_encoded.")
+```
+
+```{r, echo=TRUE}
+names = c("Street", "Utilities", "Condition2","Exterior2nd","OverallQual")
+for (name in names){cat(which(colnames(home)==name),",")}
+
+home_streamlined = home[-c(6 ,9 ,14, 24, 17)]
+```
+
+```{r, echo=TRUE}
+full_model = lm(log(SalePrice)~., data=home_streamlined)
+summary(full_model)
+```
+
+According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
+- the location and neighborhood of the home (e.g. MSZoning, LotArea, LotConfig, LandSlopeSev, Neighborhood)
+- the general aspects of the home (e.g. Condition1Norm, Condition2, BldgType, OverallCond)
+- the construction period (e.g. YearBuilt, YearRemodAdd)
+- the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat), the basement (e.g. BsmtCond, BsmtQual, BsmtFinType1, TotalBsmtQuSF), the floors, bedrooms and kitchen (e.g. X2ndFlrGr, BedroomAbrGr, KitchenQual, FunctionalTyp), the garage (e.g. GarageType, GarageArea, GarageQual) and security functions (e.g. Fireplaces).  
+According to this test, many variables could be removed from our model without affecting its efficiency to explain SalePrice. In order to choose an appropriate model more precisly, we are going to perform an anova test.  
+
+```{r, echo=TRUE}
+# Validating the postulates 
+par(mfrow=c(2,3))
+plot(full_model, which=1) # Errors are centered
+plot(full_model, which=3) # Errors are homoscedastic
+acf(residuals(full_model), main= "Auto-correlation plot") # Errors are non-correlated. 
+plot(full_model, which=2) # Errors are gaussian
+plot(full_model, which=5) # Cook's distance
+```
+
+```{r, echo=TRUE}
+home[c(121, 186, 251, 272, 326, 376, 399, 667, 1012, 1188, 1276, 1299, 1322, 1371),1:ncol(home)]
+```
+
+```{r, echo=TRUE}
+# Reducing our number of features using the 3 selection methods seen in class (forward, backward, both)
+library(MASS)
+
+# Forward method :
+linear_select_variables_forward = stepAIC(full_model, data=home_streamlined, trace=T, direction=c("forward"))
+summary(linear_select_variables_forward)
+```
+
+
+```{r, echo=TRUE}
+# Backward method
+linear_select_variables_backward = stepAIC(full_model,~., trace=TRUE, direction=c("backward") )
+summary(linear_select_variables_backward)
+```
+
+```{r, echo=TRUE}
+# Both method
+linear_select_variables_both = stepAIC(full_model, trace=TRUE, direction=c("both"))
+linear_select_variables_both
+```  
+  
+To choose among the three methods, we retrieved the AIC of each model and choose the one with the smallest AIC.  
+```{r, echo=TRUE}
+extractAIC(linear_select_variables_forward)
+extractAIC(linear_select_variables_backward)
+extractAIC(linear_select_variables_both)
+```
+According to these results, if we decide to run a linear regression, we would choose the model extracted by the bacward method (or the both method as they return the same AIC). For this specific model, let's verify that the postulates are verified.   
+
+```{r, echo=TRUE}
+# Displaying our model 
+linear_select_variables_backward
+```
+
+  
+```{r, echo=TRUE}
+# Validate (or not) the postulates 
+par(mfrow=c(3,3))
+plot(linear_select_variables_backward, which=1) # P1
+plot(linear_select_variables_backward, which=3) # P2
+acf(residuals(linear_select_variables_backward), main= "Auto-correlation plot") # P3
+plot(linear_select_variables_backward, which=2) # P4
+plot(linear_select_variables_backward, which=5) # Cook
+```
+  
+```{r, echo=TRUE}
+# tests to detect outliers
+library(car)
+influenceIndexPlot(linear_select_variables_backward)
+```
+
+```{r}
+influenceIndexPlot(full_model)
+```
+
+
+```{r, echo=TRUE}
+# Finding the outliers of our model
+outlierTest(linear_select_variables_backward)
+```
+  
+```{r, echo=TRUE}
+# Compare the models with and without outliers (AIC...)
+
+
+# Doing the same selection but removing the outliers 
+
+home_no_outliers <- home_streamlined[-c(524, 633, 1325, 463, 969, 589, 1454, 971), ]
+
+linear_backward_without_outliers <- lm(formula = sqrt(SalePrice) ~ MSZoning + LotArea + LotShape + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    BldgType + HouseStyle + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + Exterior1st + MasVnrType + ExterQual + ExterCond + 
+    Foundation + BsmtQual + BsmtCond + BsmtExposure + BsmtFinType1 + 
+    BsmtUnfSF + TotalBsmtSF + HeatingQC + X2ndFlrSF + GrLivArea + 
+    BsmtFullBath + FullBath + HalfBath + KitchenQual + Functional + 
+    Fireplaces + GarageFinish + GarageCars + GarageArea + GarageQual + 
+    GarageCond + WoodDeckSF + SaleType + SaleCondition, data = home_no_outliers )
+```
+  
+```{r, echo=TRUE}
+summary(linear_backward_without_outliers)
+```
+  
+```{r, echo=TRUE}
+# Testing the postulates on our new model 
+par(mfrow=c(3,2))
+plot(linear_backward_without_outliers, which=1) # P1
+plot(linear_backward_without_outliers, which=3) # P2
+acf(residuals(linear_backward_without_outliers), main= "Auto-correlation plot") # P3
+plot(linear_backward_without_outliers, which=2) # P4
+plot(linear_backward_without_outliers, which=5) # outliers wusing cook's distance
+```
+
+```{r, echo=TRUE}
+# Doing the shapiro test 
+library("lmtest")
+shapiro.test(residuals(linear_backward_without_outliers))
+bptest(linear_backward_without_outliers)
+```
+We still don't meet our gaussianity assumtion but this is better. 
+  
+
+```{r, echo=TRUE}
+library(car)
+influenceIndexPlot(linear_backward_without_outliers)
+```
+
+```{r, echo=TRUE}
+library(car)
+outlierTest(linear_backward_without_outliers)
+```
+
+```{r, echo=TRUE}
+#Régression Elasticnet
+library(glmnet) 
+XTrain <- subset(home_streamlined, select = -c(SalePrice) )
+YTrain <- home_streamlined$SalePrice
+fit = glmnet(XTrain, YTrain)
+# elasticnet_ <- glmnet(XTrain,YTrain,family="binomial",standardize=FALSE,alpha=0.8)
+#plot(enet3,xvar="lambda")
+```
+
+  
+\textbf{IV. Final models}  
+  
+Parameters of our model:  
+Error:  
+Confidence interval:  
+p-value:  
+Estimate of the generalization error of our final model:  
+  
+\textbf{V. Discussion}  
+Final conclusions on our model:  
+key learnings:  
+Improvements for future projects:  
