@@ -392,36 +392,38 @@ y_test = y_var[x_test]
 
 cv_output <- cv.glmnet(x_vars[train,], y_var[train], 
             alpha = 1, lambda = lambda_seq)
-
-# identifying best lamda
-best_lam <- cv_output$lambda.min
 ```
 
 ```{r}
-# Rebuilding the model with best lamda value identified
-lasso_best <- glmnet(x_vars[train,], y_var[train], alpha = 1, lambda = best_lam)
-pred <- predict(lasso_best, s = best_lam, newx = x_vars[x_test,])
-```
-
-```{r}
-final <- cbind(y_var[x_test], pred)
-# Checking the first six obs
-# head(final)
-```
-
-```{r}
-coef(lasso_best)
-```
-
-```{r}
-library(glmnet)
-set.seed(123)
-cv.lasso <- cv.glmnet(x_vars, y_var, alpha = 1)
 plot(cv.lasso)
 ```
+
 ```{r}
-coef(cv.lasso, cv.lasso$lambda.1se)
+# identifying best lamda
+best_lam <- cv_output$lambda.min
+
+# Rebuilding the model with best lamda value identified
+lasso_best <- glmnet(x_vars[train,], y_var[train], alpha = 1, lambda = best_lam)
+lasso_regression <- predict(lasso_best, s = best_lam, newx = x_vars[x_test,])
 ```
+
+```{r}
+# Displaying our regression model
+# coef(lasso_best, best_lam)
+```
+
+```{r, echo=TRUE}
+# Validate (or not) the postulates 
+par(mfrow=c(3,3))
+plot(lasso_regression, which=1) # P1
+plot(lasso_regression, which=3) # P2
+acf(residuals(lasso_regression), main= "Auto-correlation plot") # P3
+plot(lasso_regression, which=2) # P4
+plot(lasso_regression, which=5) # Cook
+```
+
+
+
 
 
 
