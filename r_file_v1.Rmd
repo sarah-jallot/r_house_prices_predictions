@@ -50,7 +50,9 @@ We start by reaffecting the missclassified int categories to factor type:
 #wrong_categories = c( "MSZoning") #, "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
 #for (category in wrong_categories) {home[,category] = as.factor(home[,category])}
 ```
-  
+
+
+
 \textbf{II. Exploratory data analysis / initial modeling} 
   
 To do correlation matrices, we need numerical or factor variables.  
@@ -138,7 +140,12 @@ par(mfrow=c(1,3))
 factors = unlist(lapply(home, is.factor))
 home_factors = home[,factors]
 for (feature in 1:ncol(home_factors)){
-barplot(table(home_factors[feature]), main = colnames(home_factors)[feature])}
+barplot(table(home_factors[feature])[order(table(home_factors[feature]))], main = colnames(home_factors)[feature])}
+```
+
+
+```{r}
+table(home$HouseStyle)[order(table(home$HouseStyle))]
 ```
 Observing the factor columns, we see three types of repartitions.  
 i) Clear surrepresentation of one level versus the others. 
@@ -156,7 +163,26 @@ As we have many factor columns, we have to transform them into dummies in order 
 plot(home_factors[1:10])
 ```
 
+```{r}
+home <- read.csv("train_imputed.csv", row.names=1)
+# Neighborhood
+barplot(table(home_factors$Neighborhood), main = "Neighbourhood")
+```
 
+
+```{r}
+table_neighborhood= table(home$Neighborhood)
+table_neighborhood[order(table_neighborhood)]
+```
+
+
+```{r}
+levels(home$Neighborhood) <- c(levels(home$Neighborhood), "Under20Sales") 
+home$Neighborhood[home$Neighborhood %in% c("Blueste","NPkVill","Veenker","BrDale","Blmngtn","MeadowV")] = "Under20Sales"  #"StoneBr","SWISU","ClearCr","IDOTRR","Timber","NoRidge")
+
+table_neighborhood2= table(home$Neighborhood)
+table_neighborhood2[order(table_neighborhood2)]
+```
 
 Checking that we don't have missing values
 ```{r}

@@ -52,9 +52,12 @@ Additionally, R appears to classify some features as integers when they could be
 All quantitative features are integers and price, the output, is the only numeric.  
 Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so.  
 ```{r}
-cat_to_reaffect = c( "OverallQual", "OverallCond", "MoSold", "MSSubClass") # "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
+cat_to_reaffect = c( "OverallQual", "OverallCond", "MoSold", "MSSubClass", "Fireplaces") # "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
 for (category in cat_to_reaffect) {home[,category] = as.factor(home[,category])}
 head(home)
+```
+```{r}
+str(home)
 ```
 
 \textbf{II. Exploratory data analysis / initial modeling} 
@@ -149,22 +152,22 @@ factors = unlist(lapply(home, is.factor))
 home_factors = home[,factors]
 
 # Street 
-barplot(table(home_factors$Street), main = "Street")
+barplot(table(home_factors$Street)[order(table(home_factors$Street))], main = "Street")
 # Neighbourhood
-barplot(table(home_factors$Neighborhood), main = "Neighbourhood")
+barplot(table(home_factors$Neighborhood)[order(table(home_factors$Neighborhood))], main = "Neighbourhood")
 # Garage Finish
-barplot(table(home_factors$GarageFinish), main = "GarageFinish")
+barplot(table(home_factors$GarageFinish)[order(table(home_factors$GarageFinish))], main = "GarageFinish")
 ```
 Observing the factor columns, we see three types of repartitions.  
 i) Clear surrepresentation of one level versus the others. 
 In Street and Utilities, which are binary, this is conspicuous. From this we infer that these factors won't be very useful in predicting house price in general: nearly all houses will be in the same category along these factors (and for those who aren't, data is too sparse to generalise well).  
 Note that this is also the case for RoofMatl, Heating, BsmtFinType2, Electrical, GarageCond, GarageQual.  
   
-ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We could regroup some of these levels together to improve our predictions.  
+ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We will regroup some of these levels together to improve our predictions.
 Note that this is also the case for Exterior1st, Exterior2nd, BsmtExposure. 
   
 iii) Classic factor repartition with reasonable representation of each modality, as is the case for Housestyle for instance. 
-Note that this is also the case for HeatingQC, GarageFinish, BsmtFinType1.
+Note that this is also the case for HeatingQC, GarageFinish, BsmtFinType1.  
 
 Intuitively, we said that both location and overall quality will impact SalePrice significantly. Let us check this with anova and ancova tests. 
 ```{r}
@@ -208,19 +211,57 @@ anova(mod3)
 Since the last p-value is greater than 0.05, we will consider that SalePrice will depend in a similar manner on OverallQual and MSZoning. 
 
 \textbf{III. Modeling and diagnostics}  
+```{r}
+# Making sure our data exploration didn't modify the dataset
+home <- read.csv("train_preprocessed.csv", row.names=1)
+```
+
 Given the volatility of Saleprice, we will work on its logarithm to smooth its distribution and improve estimated residuals homoscedasticity. 
 After manually removing poorly informative factors and other highly correlated numerical features, we start by fitting a full linear model to predict log(SalePrice) and check whether the postulates are validated. 
 
 XXX and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
 Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
+```{r}
+# Some elementary pruning and regrouping of categories
+# Regrouping neighbourhoods of less than 20 and 50 sales together 
+table_neighborhood= table(home$Neighborhood)
+table_neighborhood[order(table_neighborhood)]
+
+levels(home$Neighborhood) <- c(levels(home$Neighborhood), "N_Under20Sales","N_Under50Sales") 
+home$Neighborhood[home$Neighborhood %in% c("Blueste","NPkVill","Veenker","BrDale","Blmngtn","MeadowV")] = "N_Under20Sales"
+home$Neighborhood[home$Neighborhood %in% c("StoneBr","SWISU","ClearCr","IDOTRR","Timber","NoRidge","Mitchel")] = "N_Under50Sales"
+```
+```{r}
+# Roofstyle
+#table(home$RoofStyle)[order(table(home$RoofStyle))]
+#levels(home$RoofStyle) <- c(levels(home$RoofStyle), "RS_Other") 
+#home$RoofStyle[home$RoofStyle %in% c("Shed","Mansard","Gambrel","Flat")] = "RS_Other"
+
+# Condition 1
+#table(home$Condition1)[order(table(home$Condition1))]
+#levels(home$Condition1) <- c(levels(home$Condition1), "C_Other") 
+#home$Condition1[home$Condition1 %in% c("RRNe","RRNn","PosA","RRAe","PosN","RRAn","Artery")] = "C_Other"
+
+# ExterCond
+#table(home$ExterCond)[order(table(home$ExterCond))]
+#levels(home$ExterCond) <- c(levels(home$ExterCond), "EC_Other") 
+#home$ExterCond[home$ExterCond %in% c("Po", "Ex", "Fa", "Gd")] = "EC_Other"
+
+# OverallQual
+#table(home$OverallQual)
+#levels(home$OverallQual) <- c(levels(home$OverallQual), "Very_Low") 
+#home$OverallQual[home$OverallQual %in% c("-4.27238846180047", "-3.28279659466729", "-2.38962301582022")] = "Very_Low"
+```
 
 ```{r, echo=TRUE}
-col_to_remove = c("Street", "Utilities", "Condition2","Exterior2nd", "Electrical", "BldgType") 
+col_to_remove = c("Street", "Utilities", "RoofMatl", "Condition2","Exterior1st", "Exterior2nd", "Electrical")
 for (name in col_to_remove){cat(which(colnames(home)==name)," ")}
-home_streamlined = home[-c(6 ,9 ,14, 24, 41, 15)]
+home_streamlined = home[-c(6 ,9 ,22, 14, 23, 24, 41)]
+```
 
-# Removing weird observations
-home_streamlined = home_streamlined[-c(121, 186, 251, 272, 326, 376, 399, 667, 1012, 1188, 1276, 1299, 1322, 1371, 527, 526, 525), 1:ncol(home_streamlined)]
+
+```{r, echo=TRUE}
+home_streamlined[c(186, 251, 667, 1322),1:ncol(home_streamlined)]
 ```
 Given that Electrical and BldgType were highly correlated with other features and were poorly informative factors, we removed them from the dataset. 
 ```{r, echo=TRUE}
@@ -240,30 +281,29 @@ Many variables could be removed from our model while marginally affecting its ef
 par(mfrow=c(3,3))
 plot(full_model, which=1) # Errors are centered
 plot(full_model, which=3) # Errors are homoscedastic
-acf(residuals(full_model), main= "Auto-correlation plot") # Errors are non-correlated. 
+acf(residuals(full_model), main= "Auto-correlation plot") # Errors are non-correlated
 plot(full_model, which=2) # Errors are gaussian
 plot(full_model, which=5) # Cook's distance
 ```
-```{r, echo=TRUE}
-
+```{r, echo=TRUE, message= FALSE, comment=FALSE}
 # Reducing our number of features using the 3 selection methods seen in class (forward, backward, both)
 library(MASS)
 # Forward method :
-linear_select_variables_forward = stepAIC(full_model, data=home_streamlined, trace=T, direction=c("forward"), verbose = FALSE)
-summary(linear_select_variables_forward)
+linear_select_variables_forward = stepAIC(full_model, data=home_streamlined, trace=0, direction=c("forward"), verbose = FALSE)
+#summary(linear_select_variables_forward)
 ```
-
 
 ```{r, echo=TRUE}
 # Backward method
-linear_select_variables_backward = stepAIC(full_model,~., trace=TRUE, direction=c("backward") )
-summary(linear_select_variables_backward)
+linear_select_variables_backward = stepAIC(full_model,~., trace=0, direction=c("backward") )
+#summary(linear_select_variables_backward)
 ```
 
+
 ```{r, echo=TRUE}
-# Both method
-linear_select_variables_both = stepAIC(full_model, trace=TRUE, direction=c("both"))
-linear_select_variables_both
+# Both
+linear_select_variables_both = stepAIC(full_model, trace=0, direction=c("both"))
+#summary(linear_select_variables_both)
 ```  
   
 To choose among the three methods, we retrieved the AIC of each model and choose the one with the smallest AIC.  
@@ -274,12 +314,6 @@ extractAIC(linear_select_variables_both)
 ```
 According to these results, if we decide to run a linear regression, we would choose the model extracted by the backward method. For this specific model, let's verify that the postulates are verified.   
 
-```{r, echo=TRUE}
-# Displaying our model 
-linear_select_variables_backward
-```
-
-  
 ```{r, echo=TRUE}
 # Validate (or not) the postulates 
 par(mfrow=c(3,3))
