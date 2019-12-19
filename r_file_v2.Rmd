@@ -266,7 +266,7 @@ home_streamlined[c(186, 251, 667, 1322),1:ncol(home_streamlined)]
 Given that Electrical and BldgType were highly correlated with other features and were poorly informative factors, we removed them from the dataset. 
 ```{r, echo=TRUE}
 full_model = lm(log(SalePrice)~., data = home_streamlined)
-summary(full_model)
+#summary(full_model)
 ```
 According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
 - the location of the home (e.g. MSZoning, Neighborhood)

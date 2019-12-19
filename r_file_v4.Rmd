@@ -10,31 +10,34 @@ knitr::opts_chunk$set(echo = FALSE)
 ```
 
 \textbf{I. Introduction} 
+```{r}
+load("~/Regression/Final_projectREG/DataProject.RData")
+```
   
 Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE on test data.     
-The training data consists of a set of 66 categorical and quantitative variables extensively describing 1,460 residential homes in Ames, Iowa, and their corresponding price in dollars. 
+The training data consists of a set of 66 categorical and quantitative variables extensively describing 1,095 residential homes in Ames, Iowa, and their corresponding price in dollars. 
 We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.     
   
 We will first explore our data to get intuition of an efficient model. Understanding and preprocessing the data implies that we understand what we are given, check that there are no missing values, and that R correctly categorises each regressor.  
   
-```{r}
+```{r, include = FALSE}
 # Loading the preprocessed dataset 
-home <- read.csv("train_preprocessed.csv", row.names=1)
-# head(home)
+home = train[,2:ncol(train)]
+#head(home)
 ```
 The data we are handling is heterogeneous, although it is presented in a structured manner. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
   
-`````{r}
-# summary(home)
+`````{r, include = FALSE } 
+summary(home)
 ```
   
-Displaying the summary of our dataframe, there are 67 columns including the price, meaning a full model would include 66 features and an intercept, and 1,460 observations.  
+Displaying the summary of our dataframe, there are 67 columns including the price, meaning a full model would include 66 features and an intercept, and 1,095 observations.  
 The list of features is extensive: it is probable that not all regressors are useful to predict house price.  
   
 The quantitative variables differ in scale and range: prices start from ~35,000 dollars, and can attain 755,000, whereas bedrooms above ground range from 1 to 8 only for instance.  
 This means that scaling our data could optimise model performance.  
   
-We first treat missing values before launching into analysis.  
+We first treat missing values before launching into the analysis.  
   
 ```{r}
 cat("There are", sum(is.na(home)), "missing values in our dataframe.")
@@ -42,7 +45,7 @@ cat("There are", sum(is.na(home)), "missing values in our dataframe.")
 
 ```{r}
 # Getting regressor types
-# str(home, give.attr = FALSE)
+#str(home, give.attr = FALSE)
 ```
 First intuition: looking at this dataset, we can see that we have a lot of regressors and that some might be more relevant than others to explain the SalePrice. For instance, the variable MSZoning is expected to have much more impact on the price that the variable Heating, as the heating system is something that can be changed, whereas the location is permanent.  
 Thus, we will perform different types of analysis to keep only the most relevant variables in our model. 
@@ -52,8 +55,11 @@ Additionally, R appears to classify some features as integers when they could be
 All quantitative features are integers and price, the output, is the only numeric.  
 Factor variables are automatically numerically encoded by R, which assigns them to ascending levels using their alphabetical order. Note that this might bias the data by assigning a higher value to one level versus another without any ground to do so.  
 ```{r}
-cat_to_reaffect = c( "OverallQual", "OverallCond", "MoSold", "MSSubClass", "Fireplaces") # "YearBuilt", "YearRemodAdd", "GarageYrBlt", "MoSold", "YrSold", "MSSubClass")
-for (category in cat_to_reaffect) {home[,category] = as.factor(home[,category])}
+home$OverallQual = as.factor(home$OverallQual)
+home$OverallCond = as.factor(home$OverallCond)
+home$MoSold = as.factor(home$MoSold)
+home$MSSubClass = as.factor(home$MSSubClass)
+home$Fireplaces = as.factor(home$Fireplaces)
 # head(home)
 ```
 
@@ -115,7 +121,6 @@ The numerical features that are the most correlated with SalePrice are OverallQu
 Given that we have 67 columns, of which 29 are quantitative, let's explore the possibilities we have to reduce our dataframe.  
 Because PCA works best with (scaled) numerical data, we will perform it on our scaled numerical feature columns. 
 ```{r}
-# home_numerical_output = home_numerical$SalePrice
 home_numerical_output = home_numerical$SalePrice
 home_numerical_features = home_numerical[,2:ncol(home_numerical)] # we will perform the PCA analysis on this dataset. 
 ```
@@ -240,10 +245,6 @@ anova(mod3)
 
 
 \textbf{III. Modeling and diagnostics}  
-```{r}
-# Making sure our data exploration didn't modify the dataset
-home <- read.csv("train_preprocessed.csv", row.names=1)
-```
 
 Given the volatility of Saleprice, we will work on its logarithm to smooth its distribution and improve estimated residuals homoscedasticity. 
 After manually removing poorly informative factors and other highly correlated numerical features, we start by fitting a full linear model to predict log(SalePrice) and check whether the postulates are validated. 
@@ -320,21 +321,19 @@ mod3 = lm(SalePrice~1 + BldgType + Exterior1st + BldgType:Exterior1st, data = ho
 anova(mod3)
 ```
 
-
-
 Then, using previous analyses and deeper data exploration, we found at that some columns did not help to predict our model, as they could add redundancies or errors. Thus, we decided to remove them:   
 - We removed some features that took almost a single value for all oberservations: Street, Utilities, RoofMatl, Condition2, Heating, Electrical, Functional, GarageCond.  
 - For some features, we were not sure wether or not they had an influence, so we tested the model with and without them and removed them if they were not improving our score : HeatingQC, SaleCondition, BsmtFinType2, RoofStyle, ExterQual.  
 - We also removed some features based on Anova tests: Exterior1st, Exterior2nd, GarageFinish.  
 - Finally, we found out that OpenPorshSF was lowering our ajusted R2 and was not correlated to the SalePrice (cf. correlation matrix), so running the model without this feature was better.  
 
-```{r, include=FALSE}
+```{r}
 col_to_remove = c("Street", "Utilities", "RoofMatl", "Condition2","Exterior1st", "Exterior2nd", "Electrical", "SaleCondition", "BsmtFinType2", "Heating","RoofStyle", "GarageCond", "ExterQual", "GarageFinish", "OpenPorchSF", "HeatingQC", "Functional")
 for (name in col_to_remove){cat(which(colnames(home)==name)," ")}
 ```
 
 ```{r, include=FALSE}
-home_streamlined = home[-c(6 ,9 ,22, 14, 23, 24, 41, 67, 35, 38, 21, 60, 27, 56, 63, 39, 52)]
+home_streamlined = home[-c(5, 8, 21, 13, 22, 23, 40, 66, 34, 37, 20, 59, 26, 55, 62, 38, 51 )]
 ```
 
 
@@ -351,18 +350,7 @@ According to the T test above, the variables having the most impact to explain S
 - # Comment/reword the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat) and security functions (e.g. Fireplaces). 
 - the construction period (e.g. YearBuilt, YearRemodAdd)
 
-Many variables could be removed from our model while marginally affecting its efficiency to explain SalePrice. 
-```{r}
-# Validating the postulates 
-par(mfrow=c(3,3))
-plot(full_model, which=1) # Errors are centered
-plot(full_model, which=3) # Errors are homoscedastic
-acf(residuals(full_model), main= "Auto-correlation plot") # Errors are non-correlated
-plot(full_model, which=2) # Errors are gaussian
-plot(full_model, which=5) # Cook's distance
-```
-  
-Looking at the graph, we can validate our postules. However, to improve the efficiency of our model, we will perform a selection of variables based on forward, backward and both methods. 
+Many variables could be removed from our model while marginally affecting its efficiency to explain SalePrice. To improve model efficiency, we will perform a selection of variables based on forward, backward and both methods. 
   
 ```{r, message= FALSE, comment=FALSE}
 # Reducing our number of features using the 3 selection methods seen in class (forward, backward, both)
@@ -405,7 +393,6 @@ Now, we want to verify that we don't have outliers in our model.
 library(car)
 influenceIndexPlot(linear_select_variables_backward)
 ```
-
 Cook's distance plot: according to the Cook's criteria, we don't observe any leverage point or regression outlier.  
 Studentized residuals plot: according to the plot, there are a lot of outliers (many points below -2), which is confusing. The two main outliers according to this criteria oare 524 and 1299. 
 Bonferroni's plot : we notice that 13 points have a p-value inferior to 0.5, so they are outliers according to this criteria.  
@@ -416,36 +403,35 @@ Based on those results, we decided to run an outlier test for more precision:
 # Finding the outliers of our model
 outlierTest(linear_select_variables_backward)
 ```
-Using this test, 8 possible outliers are given according to the studentized criterion and Bonferroni p-value. We can now test our model without them.
+Using this test, 7 possible outliers are given according to the studentized criterion and Bonferroni p-value. We can now test our model without them.
 Note that those tests are based on confidence intervals and then for this reason, given the number of observations, we could have up to 70 outliers. 
   
-```{r, include=FALSE}
+```{r}
 # Plotting our regression outliers
-home_streamlined[c(1299,524,633,1325,969,463,1433,411),1:ncol(home_streamlined)]
+home_streamlined[c(199, 596, 336, 692, 633, 323,809),1:ncol(home_streamlined)]
 min(home_streamlined$SalePrice)
 ```
 
 ```{r}
 # Building the dataframe without those outliers 
-home_no_outliers = home_streamlined[-c(1299,524,633,1325,969,463,1433,411), ]
+home_no_outliers = home_streamlined[-c(199, 596, 336, 692, 633, 323,809), ]
 ```
 
 ```{r}
 # Displaying our regression model to use it on our new dataframe without outliers
-# linear_select_variables_backward
+#linear_select_variables_backward
 ```
 
 
 ```{r}
 # Building the same regression model as before with our new dataframe 
 linear_backward_without_outliers <- lm(formula = log(SalePrice) ~ MSSubClass + MSZoning + LotFrontage + 
-    LotArea + LotShape + LandContour + LotConfig + Neighborhood + 
-    Condition1 + BldgType + OverallQual + OverallCond + YearBuilt + 
-    YearRemodAdd + MasVnrType + MasVnrArea + ExterCond + Foundation + 
-    BsmtQual + BsmtExposure + BsmtFinSF1 + TotalBsmtSF + CentralAir + 
-    X2ndFlrSF + GrLivArea + BsmtFullBath + FullBath + HalfBath + 
-    KitchenQual + Fireplaces + GarageCars + GarageQual + WoodDeckSF + 
-    SaleType, data = home_no_outliers)
+    LotArea + LandContour + LandSlope + Neighborhood + Condition1 + 
+    OverallQual + OverallCond + YearBuilt + YearRemodAdd + ExterCond + 
+    Foundation + BsmtExposure + BsmtFinSF1 + TotalBsmtSF + CentralAir + 
+    GrLivArea + BsmtFullBath + FullBath + HalfBath + KitchenQual + 
+    Fireplaces + GarageType + GarageCars + GarageQual + WoodDeckSF + 
+    YrSold, data = home_no_outliers)
 ```
 
 ```{r, include=FALSE}
@@ -471,6 +457,49 @@ For P4, we have tail observations that do not fit the normal distribution. Based
   
 Parameters of our model:  
 Error:  
+
+```{r, include=FALSE}
+test = test[,2:ncol(test)]
+# Reaffecting test's features to factors
+test$OverallQual = as.factor(test$OverallQual)
+test$OverallCond = as.factor(test$OverallCond)
+test$MoSold = as.factor(test$MoSold)
+test$MSSubClass = as.factor(test$MSSubClass)
+test$Fireplaces = as.factor(test$Fireplaces)
+
+# Regrouping neighbourhoods of less than 20 and 50 sales together
+levels(test$Neighborhood) <- c(levels(test$Neighborhood), "N_Under20Sales","N_Under50Sales") 
+test$Neighborhood[test$Neighborhood %in% c("Blueste","NPkVill","Veenker","BrDale","Blmngtn","MeadowV")] = "N_Under20Sales"
+test$Neighborhood[test$Neighborhood %in% c("StoneBr","SWISU","ClearCr","IDOTRR","Timber","NoRidge","Mitchel")] = "N_Under50Sales"
+
+# Roofstyle
+levels(test$RoofStyle) <- c(levels(test$RoofStyle), "RS_Other") 
+test$RoofStyle[test$RoofStyle %in% c("Shed","Mansard","Gambrel","Flat")] = "RS_Other"
+
+# Condition 1
+levels(test$Condition1) <- c(levels(test$Condition1), "C_Other") 
+test$Condition1[test$Condition1 %in% c("RRNe","RRNn","PosA","RRAe","PosN","RRAn","Artery")] = "C_Other"
+
+# ExterCond
+levels(test$ExterCond) <- c(levels(test$ExterCond), "EC_Other") 
+test$ExterCond[test$ExterCond %in% c("Po", "Ex", "Fa", "Gd")] = "EC_Other"
+
+# OverallQual
+levels(test$OverallQual) <- c(levels(test$OverallQual), "Very_Low") 
+test$OverallQual[test$OverallQual %in% c("-4.27238846180047", "-3.28279659466729", "-2.38962301582022")] = "Very_Low"
+```
+
+```{r}
+head(test)
+```
+
+```{r}
+# RMSE
+mean((log(test$SalePrice) - predict.lm(linear_backward_without_outliers, test)) ^ 2)
+```
+
+
+```{r}
 Confidence interval:  
 p-value:  
 Estimate of the generalization error of our final model:  training data 
@@ -478,4 +507,4 @@ Estimate of the generalization error of our final model:  training data
 \textbf{V. Discussion}  
 Final conclusions on our model:  
 key learnings:  
-Improvements for future projects:  
+Improvements for future projects:
