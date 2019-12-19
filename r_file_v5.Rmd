@@ -145,7 +145,6 @@ abline(h=1, col='red')
 abline(v=23, col='black', lty = 3)
 ```
 23 of our 28 numerical features account for 99% of the variance.  
-For 20 features, we still get an acceptable explained variance of ~96% > 95%.
   
   
 3. Factor analysis  
@@ -194,8 +193,13 @@ ggplot(home,
            group = OverallQual, 
            fill = OverallQual)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
 
-# Year sold
-boxplot(SalePrice~YrSold, data = home, xlab = "Year Sold", ylab = "SalePrice")
+# Overall condition
+ggplot(home, 
+       aes(x=OverallCond, 
+           y=SalePrice, 
+           colour= OverallCond, 
+           group = OverallCond, 
+           fill = OverallCond)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
 ```
 
 It appears that houses from the RM and RH areas are less expensive than the ones from FV and RL areas.
@@ -204,44 +208,44 @@ It appears that houses from the RM and RH areas are less expensive than the ones
 mod1<-lm(SalePrice ~ MSZoning-1 , data=home)
 anova(mod1)
 
-# Anova on quality
+# Anova on overall quality
 mod2<-lm(SalePrice ~ OverallQual-1 , data=home)
 anova(mod2)
+
+# Anova on overall condition
+mod3<-lm(SalePrice ~ OverallCond-1 , data=home)
+anova(mod3)
 ```
 Anova tests seem to show that both area and overall quality have a strong effect on SalePrice. However, here we have not accounted for the interaction between MSzoning and overall quality: to validate our conclusions, we must show that it is not significant with an ANCOVA test. 
 ```{r}
 # Ancova on quality and area
-mod3 = lm(SalePrice~1 + MSZoning + OverallQual + OverallQual:MSZoning, data = home)
-anova(mod3)
+mod4 = lm(SalePrice~1 + MSZoning + OverallQual + OverallQual:MSZoning, data = home)
+anova(mod4)
 ```
 Since the last p-value is big, we will consider that SalePrice will depend in a similar manner on OverallQual and MSZoning. 
+```{r}
+mod5 = lm(SalePrice~1 + OverallQual + + OverallCond + OverallQual:OverallCond, data = home)
+anova(mod5)
+```
 
 
 ```{r}
 # Ancova between HeatingQC and Heating
 mod3 = lm(SalePrice~1 + HeatingQC + Heating + HeatingQC:Heating, data = home)
 anova(mod3)
-```
 
-```{r}
 # Ancova between CentralAir and Heating
 mod3 = lm(SalePrice~1 + CentralAir + HeatingQC + CentralAir:HeatingQC, data = home)
 anova(mod3)
-```
 
-```{r}
 # Ancova between CentralAir and Heating
 mod3 = lm(SalePrice~1 + CentralAir + Heating + HeatingQC + CentralAir:Heating + CentralAir:HeatingQC + Heating:HeatingQC + CentralAir:Heating:HeatingQC , data = home)
 anova(mod3)
-```
 
-```{r}
 # Ancova between CentralAir and Electrical
 mod3 = lm(SalePrice~1 + HouseStyle + Electrical + HouseStyle:Electrical, data = home)
 anova(mod3)
 ```
-
-
 
 \textbf{III. Modeling and diagnostics}  
 
