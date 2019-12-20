@@ -10,38 +10,32 @@ knitr::opts_chunk$set(echo = FALSE)
 ```
 
 \textbf{I. Introduction} 
-```{r}
+```{r, include = FALSE}
 load("DataProject.RData")
 ```
 Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE on test data.     
 The training data consists of a set of 66 categorical and quantitative variables extensively describing 1,095 residential homes in Ames, Iowa, and their corresponding price in dollars. 
 We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.     
   
-We will first explore our data to get intuition of an efficient model. Understanding and preprocessing the data implies that we understand what we are given, check that there are no missing values, and that R correctly categorises each regressor.  
-  
+We will first explore our data to get intuition of an efficient model. Understanding and preprocessing the data implies that we understand what we are given, check that there are no missing values, and that R correctly categorises each regressor.
 ```{r, include = FALSE}
 # Loading the preprocessed dataset 
 home = train[,2:ncol(train)]
 #head(home)
 ```
 The data we are handling is heterogeneous, although it is presented in a structured manner. We are dealing both with categorical and quantitative variables, which we will have to preprocess separately.  
-  
 `````{r, include = FALSE } 
 summary(home)
 ```
-  
 Displaying the summary of our dataframe, there are 67 columns including the price, meaning a full model would include 66 features and an intercept, and 1,095 observations.  
-The list of features is extensive: it is probable that not all regressors are useful to predict house price.  
-  
+The list of features is extensive: not all regressors will be useful to predict house price.  
 The quantitative variables differ in scale and range: prices start from ~35,000 dollars, and can attain 755,000, whereas bedrooms above ground range from 1 to 8 only for instance.  
-This means that scaling our data could optimise model performance.  
+Scaling our data could optimise model performance.  
   
 We first treat missing values before launching into the analysis.  
-  
 ```{r}
 cat("There are", sum(is.na(home)), "missing values in our dataframe.")
 ```
-
 ```{r}
 # Getting regressor types
 #str(home, give.attr = FALSE)
@@ -106,8 +100,8 @@ Our intuition is that three feature types mainly drive SalePrices: location, are
 ```{r}
 par(mfrow=c(1,2))
 # Area
-hist(home_numerical$LotArea, main = "LotArea")
-boxplot(home_numerical$LotArea, main = "LotArea")
+hist((home_numerical$LotArea), main = "LotArea")
+boxplot((home_numerical$LotArea), main = "LotArea")
 ```
 We believe that areas, particularly LotArea, will be important when predicting SalePrice. 
 Most areas are located within [-2,2] in our pre-processed dataset, with many outliers towards the left- or the right-hand-side. 
@@ -146,7 +140,6 @@ abline(v=23, col='black', lty = 3)
 ```
 23 of our 28 numerical features account for 99% of the variance.  
   
-  
 3. Factor analysis  
 For our first contact with the factors, let us get a closer look at level repartition to get an idea of fragmentation within the factors.  
 ```{r}
@@ -167,7 +160,7 @@ i) Clear surrepresentation of one level versus the others.
 In Street and Utilities, which are binary, this is conspicuous. From this we infer that these factors won't be very useful in predicting house price in general: nearly all houses will be in the same category along these factors (and for those who aren't, data is too sparse to generalise well).  
 Note that this is also the case for RoofMatl, Heating, BsmtFinType2, Electrical, GarageCond, GarageQual.  
   
-ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We will regroup some of these levels together to improve our predictions.
+ii) High cardinality in the number of levels: this is especially the case for neighbourhood, which has 25 levels. We regroup some of these levels together to improve our predictions.
 Note that this is also the case for Exterior1st, Exterior2nd, BsmtExposure. 
   
 iii) Classic factor repartition with reasonable representation of each modality, as is the case for Housestyle for instance. 
@@ -184,7 +177,10 @@ ggplot(home,
            colour=MSZoning, 
            group = MSZoning, 
            fill = MSZoning)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+```
 
+
+```{r}
 # Overall quality 
 ggplot(home, 
        aes(x=OverallQual, 
@@ -192,7 +188,10 @@ ggplot(home,
            colour= OverallQual, 
            group = OverallQual, 
            fill = OverallQual)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
+```
 
+
+```{r}
 # Overall condition
 ggplot(home, 
        aes(x=OverallCond, 
@@ -208,11 +207,11 @@ It appears that houses from the RM and RH areas are less expensive than the ones
 mod1<-lm(SalePrice ~ MSZoning-1 , data=home)
 anova(mod1)
 
-# Anova on overall quality
+# Anova on OverallQual
 mod2<-lm(SalePrice ~ OverallQual-1 , data=home)
 anova(mod2)
 
-# Anova on overall condition
+# Anova on OverallCond
 mod3<-lm(SalePrice ~ OverallCond-1 , data=home)
 anova(mod3)
 ```
@@ -224,40 +223,29 @@ anova(mod4)
 ```
 Since the last p-value is big, we will consider that SalePrice will depend in a similar manner on OverallQual and MSZoning. 
 ```{r}
-mod5 = lm(SalePrice~1 + OverallQual + + OverallCond + OverallQual:OverallCond, data = home)
+# Ancova on OverallQual and OverallCond
+mod5 = lm(SalePrice~1 + OverallQual + OverallCond + OverallQual:OverallCond, data = home)
 anova(mod5)
 ```
 
+\textbf{III. Modeling and diagnostics}  
+Given the volatility of Saleprice, we will work on its logarithm to smooth its distribution and improve estimated residuals homoscedasticity. 
+After manually removing poorly informative factors and other highly correlated numerical features, we start by fitting a full linear model to predict log(SalePrice).
+Looking at our dataframe, we realised that some factor columns had a lot of differents modalities, with some that appeared very few times. Thus, for more efficiency of our algorithm, we decided to group them. We performed this for Neighbourhood, RoofStyle, Condition1, ExterCond and OverallQual.
 
 ```{r}
-# Ancova between HeatingQC and Heating
-mod3 = lm(SalePrice~1 + HeatingQC + Heating + HeatingQC:Heating, data = home)
-anova(mod3)
+winsor1 = function (x, fraction=.05)
+{if(length(fraction) != 1 || fraction < 0 ||fraction > 0.5) {stop("bad value for 'fraction'")}
+lim <- quantile(x, probs=c(fraction, 1-fraction))
+x[ x < lim[1] ] <- lim[1]
+x[ x > lim[2] ] <- lim[2]
+x}
 
-# Ancova between CentralAir and Heating
-mod3 = lm(SalePrice~1 + CentralAir + HeatingQC + CentralAir:HeatingQC, data = home)
-anova(mod3)
-
-# Ancova between CentralAir and Heating
-mod3 = lm(SalePrice~1 + CentralAir + Heating + HeatingQC + CentralAir:Heating + CentralAir:HeatingQC + Heating:HeatingQC + CentralAir:Heating:HeatingQC , data = home)
-anova(mod3)
-
-# Ancova between CentralAir and Electrical
-mod3 = lm(SalePrice~1 + HouseStyle + Electrical + HouseStyle:Electrical, data = home)
-anova(mod3)
+home$SalePrice= (winsor1(home$SalePrice, fraction=.05))
 ```
 
-\textbf{III. Modeling and diagnostics}  
-
-Given the volatility of Saleprice, we will work on its logarithm to smooth its distribution and improve estimated residuals homoscedasticity. 
-After manually removing poorly informative factors and other highly correlated numerical features, we start by fitting a full linear model to predict log(SalePrice) and check whether the postulates are validated. 
-
-XXX and then add a Lasso penalization as we have a lot of regressors. Using those two models,the variable selection methods will enable us to select the appropriate regressors.  
-Then, we will compare our models using criteria seen in class. We will also test the gaussian assumption of our model.  
-
-Looking at our dataframe, we realised that some factor columns had a lot of differents modalities, with some that appeared very few times. Thus, for more efficiency of our algorithm, we decided to group them. We performed this for Neighbourhoood, RoofStyle, Condition1 and OverallQual.
 ```{r, include=FALSE}
-# Some elementary pruning and regrouping of categories
+# Elementary pruning and regrouping of categories
 # Regrouping neighbourhoods of less than 20 and 50 sales together 
 table_neighborhood= table(home$Neighborhood)
 table_neighborhood[order(table_neighborhood)]
@@ -289,62 +277,26 @@ levels(home$OverallQual) <- c(levels(home$OverallQual), "Very_Low")
 home$OverallQual[home$OverallQual %in% c("-4.27238846180047", "-3.28279659466729", "-2.38962301582022")] = "Very_Low"
 ```
 
-```{r}
-# Ancova on GarageCond and GarageFinish
-mod3 = lm(SalePrice~1 + GarageCond + GarageFinish + GarageCond:GarageFinish, data = home)
-anova(mod3)
-```
-
-```{r}
-# Ancova on GarageCond and GarageQual
-mod3 = lm(SalePrice~1 + GarageCond + GarageQual + GarageCond:GarageQual, data = home)
-anova(mod3)
-```
-
-```{r}
-# Ancova on GarageCond and OverallCond
-mod3 = lm(SalePrice~1 + GarageCond + OverallCond + GarageCond:OverallCond, data = home)
-anova(mod3)
-```
-
-```{r}
-# Ancova on ExterQual and OverallCond
-mod3 = lm(SalePrice~1 + ExterQual + OverallCond + ExterQual:OverallCond, data = home)
-anova(mod3)
-```  
-
-```{r}
-# Ancova on OverallQual and HeatingQC
-mod3 = lm(SalePrice~1 + OverallQual + HeatingQC + OverallQual:HeatingQC, data = home)
-anova(mod3)
-```
-```{r}
-# Ancova on BldgType and Exterior1st
-mod3 = lm(SalePrice~1 + BldgType + Exterior1st + BldgType:Exterior1st, data = home)
-anova(mod3)
-```
-
 Then, using previous analyses and deeper data exploration, we found at that some columns did not help to predict our model, as they could add redundancies or errors. Thus, we decided to remove them:   
-- We removed some features that took almost a single value for all oberservations: Street, Utilities, RoofMatl, Condition2, Heating, Electrical, Functional, GarageCond.  
-- For some features, we were not sure wether or not they had an influence, so we tested the model with and without them and removed them if they were not improving our score : HeatingQC, SaleCondition, BsmtFinType2, RoofStyle, ExterQual.  
-- We also removed some features based on Anova tests: Exterior1st, Exterior2nd, GarageFinish.  
-- Finally, we found out that OpenPorshSF was lowering our ajusted R2 and was not correlated to the SalePrice (cf. correlation matrix), so running the model without this feature was better.  
+- We removed some features that took almost a single value for all observations: Street, Utilities, RoofMatl, Condition2, Heating, Electrical, Functional, GarageCond.  
+- We also removed some features based on Anova tests: OverallCond, Exterior1st, Exterior2nd.  
+- For some features, we were not sure wether or not they had an influence, so we tested the model with and without them and removed them if they were not improving our score : HeatingQC, SaleCondition, BsmtFinType2, RoofStyle, ExterQual. 
 
 ```{r}
-col_to_remove = c("Street", "Utilities", "RoofMatl", "Condition2","Exterior1st", "Exterior2nd", "Electrical", "SaleCondition", "BsmtFinType2", "Heating","RoofStyle", "GarageCond", "ExterQual", "GarageFinish", "OpenPorchSF", "HeatingQC", "Functional")
+col_to_remove = c("Street", "Utilities", "RoofMatl", "Condition2","Heating", "Electrical", "Functional", "GarageCond","Exterior1st", "Exterior2nd", "OverallCond", "HeatingQC", "SaleCondition", "BsmtFinType2","RoofStyle", "ExterQual")
 for (name in col_to_remove){cat(which(colnames(home)==name)," ")}
 ```
 
 ```{r, include=FALSE}
-home_streamlined = home[-c(5, 8, 21, 13, 22, 23, 40, 66, 34, 37, 20, 59, 26, 55, 62, 38, 51, 17 )]
+home_streamlined = home[-c(5, 8, 21, 13, 37, 40, 51, 59, 22, 23, 17, 38, 66, 34, 20, 26)]
 ```
 
 
-```{r, include=FALSE}
+```{r, include = FALSE}
 full_model = lm(log(SalePrice)~., data = home_streamlined)
 summary(full_model)
 ```
-Running a model with all the variables excluding the ones we just removed, we obtain an adjusted R2 of 0.91. 
+Running a model with all the variables excluding the ones we just removed, we obtain an adjusted R2 of 0.90. 
 
 According to the T test above, the variables having the most impact to explain SalePrice are the ones describing: 
 - the location of the home (e.g. MSZoning, Neighborhood)
@@ -353,8 +305,7 @@ According to the T test above, the variables having the most impact to explain S
 - # Comment/reword the specificities of some aspects of the home such as the roof (e.g. RoofStyleShed, RoofMat) and security functions (e.g. Fireplaces). 
 - the construction period (e.g. YearBuilt, YearRemodAdd)
 
-Many variables could be removed from our model while marginally affecting its efficiency to explain SalePrice. To improve model efficiency, we will perform a selection of variables based on forward, backward and both methods. 
-  
+To improve model efficiency, we will perform variable step selection.
 ```{r, message= FALSE, comment=FALSE}
 # Reducing our number of features using the 3 selection methods seen in class (forward, backward, both)
 library(MASS)
@@ -377,8 +328,7 @@ extractAIC(linear_select_variables_forward)
 extractAIC(linear_select_variables_backward)
 extractAIC(linear_select_variables_both)
 ```
-  
-We choose the model extracted by the backward or the both method as they have the same AIC, smaller than the one of the forward method. We choose arbitrarily the backward one. For this specific model, let's verify that the postulates are verified.   
+We choose the model extracted by the backward or the both method as they have the same AIC, smaller than the one of the forward method. We arbitrarily choose the backward model. For this specific model, let's verify that the postulates are verified.   
   
 ```{r}
 # Validate (or not) the postulates 
@@ -390,7 +340,6 @@ plot(linear_select_variables_backward, which=2) # P4
 plot(linear_select_variables_backward, which=5) # Cook
 ```
 Looking at the graphs, the postulates are verified for this model.  
-  
 Now, we want to verify that we don't have outliers in our model. 
 ```{r}
 library(car)
@@ -406,40 +355,39 @@ Based on those results, we decided to run an outlier test for more precision:
 # Finding the outliers of our model
 outlierTest(linear_select_variables_backward)
 ```
-Using this test, 7 possible outliers are given according to the studentized criterion and Bonferroni p-value. We can now test our model without them.
+Using this test, 8 possible outliers are given according to the studentized criterion and Bonferroni p-value. We can now test our model without them.
 Note that those tests are based on confidence intervals and then for this reason, given the number of observations, we could have up to 70 outliers. 
+
   
 ```{r}
 # Plotting our regression outliers
-home_streamlined[c(199, 596, 336, 692, 633, 618, 323,809),1:ncol(home_streamlined)]
-median(home_streamlined$SalePrice)
+home_streamlined[c(199, 336, 596, 633),1:ncol(home_streamlined)]
 ```
 
 ```{r}
 # Building the dataframe without those outliers 
-home_no_outliers = home_streamlined[-c(199, 596, 336, 692, 633, 618, 323,809), ]
+home_no_outliers = home_streamlined[-c(199, 336, 596, 633), ]
 ```
 
 ```{r}
 # Displaying our regression model to use it on our new dataframe without outliers
-#linear_select_variables_backward
+linear_select_variables_backward
 ```
-
 
 ```{r}
 # Building the same regression model as before with our new dataframe 
 linear_backward_without_outliers <- lm(formula = log(SalePrice) ~ MSSubClass + MSZoning + LotFrontage + 
-    LotArea + LandContour + LotConfig + LandSlope + Neighborhood + 
-    Condition1 + OverallQual + YearBuilt + YearRemodAdd + MasVnrType + 
-    MasVnrArea + ExterCond + Foundation + BsmtCond + BsmtExposure + 
-    BsmtFinSF1 + BsmtUnfSF + CentralAir + GrLivArea + BsmtFullBath + 
-    FullBath + HalfBath + KitchenQual + Fireplaces + GarageType + 
-    GarageCars + GarageQual + WoodDeckSF + MoSold + YrSold, data = home_streamlined)
+    LotArea + LotConfig + Neighborhood + Condition1 + OverallQual + 
+    YearBuilt + YearRemodAdd + MasVnrType + MasVnrArea + BsmtCond + 
+    BsmtExposure + BsmtFinSF1 + BsmtUnfSF + TotalBsmtSF + CentralAir + 
+    `1stFlrSF` + GrLivArea + BsmtFullBath + FullBath + HalfBath + 
+    KitchenQual + Fireplaces + GarageType + GarageYrBlt + GarageCars + 
+    GarageQual + WoodDeckSF + MoSold + YrSold, data = home_streamlined)
 ```
 
 ```{r}
 # Looking at the results
-summary(linear_backward_without_outliers)
+#summary(linear_backward_without_outliers)
 ```
 
 ```{r, message= FALSE, comment=FALSE}
@@ -451,7 +399,6 @@ acf(residuals(linear_backward_without_outliers), main= "Auto-correlation plot") 
 plot(linear_backward_without_outliers, which=2) # P4
 plot(linear_backward_without_outliers, which=5) # outliers wusing cook's distance
 ```
-
 According to the graphs, P1 and P3 are validated without hesitation. 
 For P2, we notice an slight elliptic behaviour in the middle, but it seems slight enough to validate the postulate. 
 For P4, we have tail observations that do not fit the normal distribution. Based on the high number of observations in our dataframe and the few number of points not aligned with the normal distribution quantiles, we validate the postulate. 
@@ -492,13 +439,10 @@ levels(test$OverallQual) <- c(levels(test$OverallQual), "Very_Low")
 test$OverallQual[test$OverallQual %in% c("-4.27238846180047", "-3.28279659466729", "-2.38962301582022")] = "Very_Low"
 ```
 
-```{r}
-head(test)
-```
 
 ```{r}
 # Test error
-mean((log(test$SalePrice) - predict.lm(linear_backward_without_outliers, test)) ^ 2)
+sqrt(mean(test$SalePrice-exp(predict.lm(linear_backward_without_outliers, test)))^2)
 ```
 
 Confidence interval:
