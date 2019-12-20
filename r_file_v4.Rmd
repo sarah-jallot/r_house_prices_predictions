@@ -11,9 +11,8 @@ knitr::opts_chunk$set(echo = FALSE)
 
 \textbf{I. Introduction} 
 ```{r}
-load("~/Regression/Final_projectREG/DataProject.RData")
+load("DataProject.RData")
 ```
-  
 Our objective is to predict the prices of residential homes in Ames, Iowa accurately by exploiting an existing dataset to its best. Our key metric will be the RMSE on test data.     
 The training data consists of a set of 66 categorical and quantitative variables extensively describing 1,095 residential homes in Ames, Iowa, and their corresponding price in dollars. 
 We want to preprocess and explore our data smartly, select the best performing features, and fit the most adapted regression model after validating the key assumptions needed to implement it.     
@@ -333,7 +332,7 @@ for (name in col_to_remove){cat(which(colnames(home)==name)," ")}
 ```
 
 ```{r, include=FALSE}
-home_streamlined = home[-c(5, 8, 21, 13, 22, 23, 40, 66, 34, 37, 20, 59, 26, 55, 62, 38, 51 )]
+home_streamlined = home[-c(5, 8, 21, 13, 22, 23, 40, 66, 34, 37, 20, 59, 26, 55, 62, 38, 51, 17 )]
 ```
 
 
@@ -408,13 +407,13 @@ Note that those tests are based on confidence intervals and then for this reason
   
 ```{r}
 # Plotting our regression outliers
-home_streamlined[c(199, 596, 336, 692, 633, 323,809),1:ncol(home_streamlined)]
-min(home_streamlined$SalePrice)
+home_streamlined[c(199, 596, 336, 692, 633, 618, 323,809),1:ncol(home_streamlined)]
+median(home_streamlined$SalePrice)
 ```
 
 ```{r}
 # Building the dataframe without those outliers 
-home_no_outliers = home_streamlined[-c(199, 596, 336, 692, 633, 323,809), ]
+home_no_outliers = home_streamlined[-c(199, 596, 336, 692, 633, 618, 323,809), ]
 ```
 
 ```{r}
@@ -426,15 +425,15 @@ home_no_outliers = home_streamlined[-c(199, 596, 336, 692, 633, 323,809), ]
 ```{r}
 # Building the same regression model as before with our new dataframe 
 linear_backward_without_outliers <- lm(formula = log(SalePrice) ~ MSSubClass + MSZoning + LotFrontage + 
-    LotArea + LandContour + LandSlope + Neighborhood + Condition1 + 
-    OverallQual + OverallCond + YearBuilt + YearRemodAdd + ExterCond + 
-    Foundation + BsmtExposure + BsmtFinSF1 + TotalBsmtSF + CentralAir + 
-    GrLivArea + BsmtFullBath + FullBath + HalfBath + KitchenQual + 
-    Fireplaces + GarageType + GarageCars + GarageQual + WoodDeckSF + 
-    YrSold, data = home_no_outliers)
+    LotArea + LandContour + LotConfig + LandSlope + Neighborhood + 
+    Condition1 + OverallQual + YearBuilt + YearRemodAdd + MasVnrType + 
+    MasVnrArea + ExterCond + Foundation + BsmtCond + BsmtExposure + 
+    BsmtFinSF1 + BsmtUnfSF + CentralAir + GrLivArea + BsmtFullBath + 
+    FullBath + HalfBath + KitchenQual + Fireplaces + GarageType + 
+    GarageCars + GarageQual + WoodDeckSF + MoSold + YrSold, data = home_streamlined)
 ```
 
-```{r, include=FALSE}
+```{r}
 # Looking at the results
 summary(linear_backward_without_outliers)
 ```
@@ -494,13 +493,28 @@ head(test)
 ```
 
 ```{r}
-# RMSE
+# Test error
 mean((log(test$SalePrice) - predict.lm(linear_backward_without_outliers, test)) ^ 2)
 ```
 
+Confidence interval:
+```{r}
+newgrille = data.frame(LotArea=seq(min(home_no_outliers$LotArea)+1,max(home_no_outliers$LotArea)-1),2) 
+predicgrille = predict.lm(linear_backward_without_outliers, newgrille, interval='confidence',level=0.95) 
+plot(home_no_outliers$LotArea,home_no_outliers$SalePrice,ylab="SalePrice",xlab="LotArea",pch=20)
+#abline(linear_backward_without_outliers,col='red')
+matlines(newgrille$SalePrice,predicgrille,lty=c(1,2,2),col=c("red","blue","blue")) 
+predicgrille = predict.lm(linear_backward_without_outliers,newgrille, interval='prediction',level=0.95) 
+matlines(newgrille$SalePrice,predicgrille,lty=c(1,2,2),col=c("red","green","green"))
+```
+```{r}
+# Assuming gaussianity 
+summary(linear_backward_without_outliers)$coefficients
+```
+
+
 
 ```{r}
-Confidence interval:  
 p-value:  
 Estimate of the generalization error of our final model:  training data 
   
