@@ -15,9 +15,7 @@ To achieve this, we first investigate numerical and factor variables sequentiall
   
 We then perform elementary factor pruning and intra-factor modality regrouping before using ANOVA to remove factors manually. We do not touch numerical variables but instead rely on our model to make a selection.  
   
-We choose to fit two linear models using stepwise selection procedure with the AIC criterion to foster sparsity. In the first model, the only modification we impose on the output is applying the logarithm, before removing outliers after testing them. In the second model, we apply a winsorisation method to log(SalePrice) as we noticed that most outliers located to the LHS of price made our model less robust.  In both cases, our best model according to AIC is the backward selection model. Model 1 predicts the test data much more accurately than model 2 (24 000$ vs 33 000$), but model 2 validates the regression assumptions better. XXXX what do we predict better?? We choose to retain model 1 as we want our model to generalise well, and model 1 is satisfactory enough on the postulates. 
-Our final model has an MSE of XX.  
-    
+We choose to fit two linear models using stepwise selection procedure with the AIC criterion to foster sparsity. In the first model, the only modification we impose on the output is applying the logarithm, before removing outliers after testing them. In the second model, we apply a winsorisation method to log(SalePrice) as we noticed that most outliers located to the LHS of price made our model less robust.  In both cases, our best model according to AIC is the backward selection model. Model 1 predicts the test data much more accurately than model 2 (24 000$ vs 33 000$), but model 2 validates the regression assumptions better. We choose to retain model 1 as we want our model to generalise well, and model 1 is satisfactory enough on the postulates. Our predictions are much better under the 300K threshold for SalePrice, and had we had enough datapoints, we could have fitted a model for values underneath and above that threshold.
   
 \textbf{I. Introduction - Data description} 
 We first explore the pre-processed data to get intuition of an efficient model. Understanding and preprocessing the data implies that we understand what we are given, check that there are no missing values, and that R correctly categorises each regressor. 
@@ -324,7 +322,7 @@ home_streamlined[c(199, 596, 336, 692, 618, 633, 323, 809),1:ncol(home_streamlin
 
 ```{r, include = FALSE}
 # Building the dataframe without those outliers 
-home_no_outliers = home_streamlined[-c(199, 596, 336, 692, 618, 633, 323, 809)]
+home_no_outliers = home_streamlined[-c(199, 596, 336, 692, 618, 633, 323, 809),]
 ```
 
 ```{r, include = FALSE}
@@ -502,12 +500,17 @@ Compared to the full linear model run on the-processed dataset, our postulates a
 Plotting our errors as a function of SalePrice shows that we perform well under 300K dollars, and badly above with very high residuals for extreme values, which skew the mean residuals towards the top: 
 ```{r, fig.width=5, fig.height=3,fig.align = "center", }
 # Graphical visualisation of our prediction errors
-test_residuals = (test$SalePrice - exp(predict.lm(model2, test))) ^ 2
-plot(test$SalePrice, test_residuals, main = "Test error as a function of SalePrice")
+test_residuals = sqrt((test$SalePrice - exp(predict.lm(model2, test))) ^ 2)
+plot(test$SalePrice, test_residuals, main = "Absolute Residuals as a function of SalePrice")
 ```
 Our residuals are small for prices under 300K dollars, but increase a lot above. It would be interesting to fit a model on SalePrices that are above this threshold, another one on those under, and then average our predictions to make our final model. 
 ```{r}
 cat("As we could infer from the plot, the skewness of our test residuals is very high at ", skewness(test_residuals))
+```
+Our average residual error is of 18K for properties under 300K dollars, and 55K for properties above. 
+```{r, include = FALSE}
+test_truncated = test[test$SalePrice < 300000,]
+sqrt(mean((test_truncated$SalePrice - exp(predict.lm(model1, test_truncated))) ^ 2))
 ```
 
 Given that we still use 33 regressors, averaging the predictions of a lasso, a ridge and an elastic net could have been another solution to improve predictions and model robustness. We tried to do so but had struggles plotting our postulates afterwards, and therefore could not conclude. However, we will learn how to do it as it could have been very useful.  
