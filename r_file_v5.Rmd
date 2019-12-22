@@ -13,7 +13,7 @@ The training data consists of 66 categorical and quantitative variables extensiv
     
 We first investigate numerical and factor variables sequentially. log(SalePrice) is close to a Gaussian distribution, with a few extreme outliers. A PCA on numerical variables shows that 19/23 numerical variables account for 99% of the sample variance. We distinguish three types of factors: factors with an overrepresented level, some with high cardinality, and others with standard level repartition. 
 We then perform elementary factor pruning and intra-factor modality regrouping before using ANOVA to remove factors manually. We do not touch numerical variables but instead rely on our model to make a selection.  
-We fit two linear models using stepwise selection procedure with the AIC criterion to foster sparsity. In the first model, we predict log(SalePrice), before removing outliers after testing them. In the second model, we winsorise log(SalePrice) as we noticed that extreme outliers made our model less robust.  In both cases we retain the backward selection model. Model 1 predicts the test data much more accurately than model 2 (24 000$ vs 33 000$), but model 2 validates the regression assumptions more clearly. We retain model 1: it generalises better, and meets the postulates. Our predictions are much better under the 300K threshold for SalePrice. Had we had enough datapoints, we could have fitted two models: one for values underneath and above that threshold.
+We fit two linear models using stepwise selection procedure with the AIC criterion to foster sparsity. In the first model, we predict log(SalePrice), before removing outliers after testing them. In the second model, we winsorise log(SalePrice) as we noticed that extreme outliers made our model less robust.  In both cases we retain the backward selection model. Model 1 predicts the test data much more accurately than model 2 (24 000 dollars vs 33 000 dollars), but model 2 validates the regression assumptions more clearly. We retain model 1: it generalises better, and meets the postulates. Our predictions are much better under the 300K threshold for SalePrice. Had we had enough datapoints, we could have fitted two models: one for values underneath and above that threshold.
   
 \textbf{I. Introduction - Data description}  
 We first contextualise the pre-processed data.
@@ -155,8 +155,7 @@ plot2 = ggplot(home,
            colour= OverallQual, 
            group = OverallQual, 
            fill = OverallQual)) + geom_boxplot(alpha=0.5, outlier.alpha=0) +geom_jitter(width=0.1)
-
-grid.arrange(plot1,plot2,ncol=2)
+grid.arrange(plot2,ncol=1)
 ```
 Graphically, we see that overall quality ratings have significant impact over the median SalePrice.
 ```{r, include = FALSE}
@@ -236,13 +235,12 @@ home$OverallQual[home$OverallQual %in% c("-4.27238846180047", "-3.28279659466729
 # Feature trimming based on our above factor analysis
 home_streamlined <- home[-c(5, 8, 21, 13, 37, 40, 51, 59, 22, 23, 17, 38, 66, 34, 20, 26, 17)]
 ```
-  After working on our factors, we start by fitting a full linear model to predict log(SalePrice).
+After working on our factors, we start by fitting a full linear model to predict log(SalePrice).
 ```{r, include = FALSE}
 full_model1 <- lm(log(SalePrice)~., data = home_streamlined)
 summary(full_model1)
 ```
-Running a model with all the variables excluding the ones we just removed, we obtain an adjusted R-squared of 0.91. 
-Many variables could be removed from our model while marginally affecting its efficiency to explain SalePrice. To improve model efficiency, we perform a selection of variables based on forward, backward and both methods. 
+Running a model with all the variables excluding the ones we just removed, we obtain an adjusted R-squared of 0.91. Many variables could be removed from our model while marginally affecting its efficiency to explain SalePrice. To improve model efficiency, we perform a selection of variables based on forward, backward and both methods. 
 ```{r, include = FALSE}
 library(MASS)
 # Forward method, backward method, and both to reduce our number of features
@@ -250,13 +248,13 @@ linear_select_variables_forward = stepAIC(full_model1, data=home_streamlined, tr
 linear_select_variables_backward = stepAIC(full_model1,~., trace=0, direction=c("backward") )
 linear_select_variables_both = stepAIC(full_model1, trace=0, direction=c("both"))
 ```
-To choose among the three methods, we retrieve the AIC of each model and choose the one with the smallest AIC.  
+We choose the model with the smallest AIC.  
 ```{r}
 extractAIC(linear_select_variables_forward)
 extractAIC(linear_select_variables_backward)
 extractAIC(linear_select_variables_both)
 ```
-The 34-feature model including the intercept extracted by backward and both is the same. Its AIC is smaller than the one of the forward method. We arbitrarily choose the backward model. 
+The 34-feature model including the intercept extracted by backward and both is the same. Its AIC is smaller than the one of the forward method. We arbitrarily select the backward model. 
 Let's verify the postulates.   
 ```{r}
 # Validate (or not) the postulates 
@@ -267,12 +265,9 @@ acf(residuals(linear_select_variables_backward), main= "Auto-correlation plot") 
 plot(linear_select_variables_backward, which=2) # P4
 plot(linear_select_variables_backward, which=5) # Cook's distance
 ```
-We validate P1, centered errors, without hesitation.  
-We notice a slight elliptical behaviour of our residuals in the Scale-Location plot, potentially problematic for P3 or residual homoscedasticity. Our model may predict extreme SalePrice values less well than others. However, we validate the postulate given the plot range of that behaviour (between 1 and 1.5). Observations 336, 199 and 596 have particularly high standardised residuals. 
-We do not validate P3, the uncorrelation assumption - one bar exceeds the fitted-line threshold.
+We validate P1, centered errors, without hesitation. We notice a slight elliptical behaviour of our residuals in the Scale-Location plot, potentially problematic for P3 or residual homoscedasticity. Our model may predict extreme SalePrice values less well than others. However, we validate the postulate given the plot range of that behaviour (between 1 and 1.5). Observations 336, 199 and 596 have particularly high standardised residuals. We do not validate P3, the uncorrelation assumption - one bar exceeds the fitted-line threshold.
 P4 can be validated, but again we notice the strange behaviour of tail values, towards the left-hand-side this time. Points which are not aligned with the normal distribution quantiles are limited given the number of observations we have. Note however that observations 199, 336 and 596 appear again: they are far from the theoretical quantiles. 
 None of our observations has a Cook distance bigger than one. Observation 199 is the closest to this threshold, meaning it has significant leverage and residual abnormality.The second closest is observation 596, again. 
- 
 Let's perform an outlier analysis to see if this helps to validate our postulates. 
 ```{r, fig.width = 4, fig.height = 3, fig.align = "center"}
 library(car)
@@ -282,13 +277,11 @@ Unsurprisingly, observations 199 and 596 are very clear outliers in nearly all o
 Studentized residuals plot: 30 points are below -2, and 23 are over 2. Our model allows for ~55 outliers within a 95% confidence interval and we are within that threshold. Extreme values are preoccupying: observations 199, 336, 596, 618, 633, 692 and 809 are smaller than -4. 
 Bonferroni's plot : 6 points have a p-value inferior to 0.5, so they are outliers according to this criterion.  
 Hat plot: observations 459 and 687 have leverage at 0.68, well over 0.5.  
-  
-Based on those results, we decided to run an outlier test for more precision: 
 ```{r, include = FALSE}
 # Finding the outliers of our model
 outlierTest(linear_select_variables_backward)
 ```
-We confirm that 199, 596 and 336 are very clear outliers (and they have significant leverage). So we remove them without question. The other outliers we get by the outlier test are outliers by far also, so we remove them. 
+An outlier test confirms that 199, 596 and 336 are very clear outliers and they have significant leverage. So we remove them without question. The other outliers we get by the outlier test are outliers by far also, so we remove them. 
 ```{r, include = FALSE}
 # Plotting our regression outliers
 home_streamlined[c(199, 596, 336, 692, 618, 633, 323, 809),1:ncol(home_streamlined)] 
@@ -304,7 +297,7 @@ home_no_outliers <- home_streamlined[-c(199, 596, 336, 692, 618, 633, 323, 809),
 summary(linear_select_variables_backward)
 ```
 
-```{r}
+```{r, include = FALSE}
 # The first model we will examine is the following:
 model1 = lm(formula = log(SalePrice) ~ MSSubClass + MSZoning + LotFrontage + 
     LotArea + LandContour + LotConfig + LandSlope + Neighborhood + 
@@ -421,20 +414,11 @@ cat(" and RMSE for model 2 is", sqrt(mean((test$SalePrice - exp(predict.lm(model
 ```
 RMSE for model 1 is ~24,5K  dollars and RMSE for model 2 is 31.0K$. Even though our first model is less robust than the second, its test error is much lower. So this is the one we will retain since it still validates our postulates. 
 Let us analyse its coefficients in detail. 
-
-Model 1 can be written lm(formula = log(SalePrice) ~ MSSubClass + MSZoning + LotFrontage + 
-    LotArea + LandContour + LotConfig + LandSlope + Neighborhood + 
-    Condition1 + OverallQual + YearBuilt + YearRemodAdd + MasVnrType + 
-    MasVnrArea + ExterCond + Foundation + BsmtCond + BsmtExposure + 
-    BsmtFinSF1 + BsmtUnfSF + CentralAir + GrLivArea + BsmtFullBath + 
-    FullBath + HalfBath + KitchenQual + Fireplaces + GarageType + 
-    GarageCars + GarageQual + WoodDeckSF + MoSold + YrSold, data = home_no_outliers)
-With a 92% adjusted r-squared on train, validation of our postulates and a 24.5k$ RMSE on test, it is the model that we keep. 
+Model 1 has a 92% adjusted R-squared on train, validation of our postulates and a 24.5k dollar RMSE on test, it is the model that we keep. 
 Its most important features are: Location and area (MSZoning, neighbourhood); Quality and condition (OverallQual,GarageQual, KitchenQual); YearBuilt and YearRemodAdd.
 As expected, location , quality and condition, and construction/improvement year are our most important features with a high level of significance. 
-
-Model 2 has a 93% adjusted R-squared on train, validates the postulates, and has a 31.0K$ RMSE on test. Again we see location with neighbourhood and quality (OverallQual, GarageQual) as important predictors. In both cases, testing our model against the intercept we obtain a p-value of order e-16: we confidently reject that the intercept-reduced model is better to explain SalePrice than our model.  
-Confidence intervals: as our regression model is mostly impacted by factors, doing confidence intervals does not help us visualize the proximity among SalePrice and the most important features. However, doing a 95% confidence interval with LotArea, we notice that this variable is not good at explaning SalePrice by itself, as the price can double for a same value of LotArea. 
+Model 2 has a 93% adjusted R-squared on train, validates the postulates, and has a 31.0K dollar RMSE on test. Again we see location with neighbourhood and quality (OverallQual, GarageQual) as important predictors. In both cases, testing our model against the intercept we obtain a p-value of order e-16: we confidently reject that the intercept-reduced model is better to explain SalePrice than our model.  
+Confidence intervals: as model 1 is mostly impacted by factors, doing confidence intervals does not help us visualize the proximity among SalePrice and the most important features. However, doing a 95% confidence interval with LotArea, we notice that this variable is not good at explaning SalePrice by itself, as the price can double for a same value of LotArea. 
 ```{r, fig.width=4, fig.height=3, fig.align="center"}
 model <- lm(SalePrice ~ LotArea, data=home)
 plot(home$LotArea, home$SalePrice, xlab="LotArea", ylab="SalePrice", main="Regression", cex.main=0.8, cex.axis=0.5, cex.lab=0.5)
@@ -449,14 +433,14 @@ lines(newx, pred_interval[,3], col="orange", lty=2)
 
 \textbf{V. Discussion}  
 Compared to the full linear model run on the-processed dataset, our postulates are now much better validated with twice as less features (33 instead of 67).  
-Plotting our errors as a function of SalePrice shows that we perform well under 300K dollars, and badly above with very high residuals for extreme values, which skews the RMSE towards the top: 
-```{r, fig.width=4, fig.height=2,fig.align = "center", }
+Plotting our errors as a function of SalePrice shows that we perform well under 300K dollars, and badly above with very high residuals for extreme values, which skews the RMSE towards the top. The graph is available in the code. Our average residual error is of 18K for properties under 300K dollars, and 55K for properties above.
+```{r, fig.width=4, fig.height=3,fig.align = "center", include = FALSE }
 # Graphical visualisation of our prediction errors
 test_residuals = sqrt((test$SalePrice - exp(predict.lm(model2, test))) ^ 2)
 plot(test$SalePrice, test_residuals, main = "Absolute Residuals as a function of SalePrice", cex.main=0.8, cex.axis=0.5, cex.lab=0.5)
 ```
-Our residuals are small enough for prices under 300K dollars, but increase a lot above. A solution would be to fit a model on SalePrices that are above this threshold, another one on those under, and then average their predictions to make our final model. As we could infer from the plot, the skewness of our test residuals is very high at 4.5. Our average residual error is of 18K for properties under 300K dollars, and 55K for properties above. 
-```{r}
+A solution would be to fit a model on SalePrices that are above this threshold, another one on those under, and then average their predictions to make our final model. As we could infer from the plot, the skewness of our test residuals is very high at 4.5.  
+```{r, include = FALSE}
 cat("As we could infer from the plot, the skewness of our test residuals is very high at ", skewness(test_residuals))
 ```
 
