@@ -261,9 +261,7 @@ table_neighborhood[order(table_neighborhood)]
 levels(home$Neighborhood) <- c(levels(home$Neighborhood), "N_Under20Sales","N_Under50Sales") 
 home$Neighborhood[home$Neighborhood %in% c("Blueste","NPkVill","Veenker","BrDale","Blmngtn","MeadowV")] = "N_Under20Sales"
 home$Neighborhood[home$Neighborhood %in% c("StoneBr","SWISU","ClearCr","IDOTRR","Timber","NoRidge","Mitchel")] = "N_Under50Sales"
-```
 
-```{r, include=FALSE}
 # Roofstyle
 table(home$RoofStyle)[order(table(home$RoofStyle))]
 levels(home$RoofStyle) <- c(levels(home$RoofStyle), "RS_Other") 
@@ -327,7 +325,7 @@ Then, using previous analyses and deeper data exploration, we found at that some
 - Finally, we found out that OpenPorshSF was lowering our ajusted R2 and was not correlated to the SalePrice (cf. correlation matrix), so running the model without this feature was better.  
 
 ```{r}
-col_to_remove = c("Street", "Utilities", "RoofMatl", "Condition2","Exterior1st", "Exterior2nd", "Electrical", "SaleCondition", "BsmtFinType2", "Heating","RoofStyle", "GarageCond", "ExterQual", "GarageFinish", "OpenPorchSF", "HeatingQC", "Functional")
+col_to_remove = c("Street", "Utilities", "RoofMatl", "Condition2","Exterior1st", "Exterior2nd", "Electrical", "SaleCondition", "BsmtFinType2", "Heating","RoofStyle", "GarageCond", "ExterQual", "GarageFinish", "OpenPorchSF", "HeatingQC", "Functional", "OverallCond")
 for (name in col_to_remove){cat(which(colnames(home)==name)," ")}
 ```
 
@@ -430,7 +428,7 @@ linear_backward_without_outliers <- lm(formula = log(SalePrice) ~ MSSubClass + M
     MasVnrArea + ExterCond + Foundation + BsmtCond + BsmtExposure + 
     BsmtFinSF1 + BsmtUnfSF + CentralAir + GrLivArea + BsmtFullBath + 
     FullBath + HalfBath + KitchenQual + Fireplaces + GarageType + 
-    GarageCars + GarageQual + WoodDeckSF + MoSold + YrSold, data = home_streamlined)
+    GarageCars + GarageQual + WoodDeckSF + MoSold + YrSold, data = home_no_outliers)
 ```
 
 ```{r}
@@ -453,7 +451,10 @@ For P2, we notice an slight elliptic behaviour in the middle, but it seems sligh
 For P4, we have tail observations that do not fit the normal distribution. Based on the high number of observations in our dataframe and the few number of points not aligned with the normal distribution quantiles, we validate the postulate. 
 
 \textbf{IV. Final models}  
-  
+```{r}
+linear_backward_without_outliers
+```
+
 Parameters of our model:  
 Error:  
 
@@ -494,31 +495,12 @@ head(test)
 
 ```{r}
 # Test error
-mean((log(test$SalePrice) - predict.lm(linear_backward_without_outliers, test)) ^ 2)
+sqrt(mean((test$SalePrice - exp(predict.lm(linear_backward_without_outliers, test))) ^ 2))
 ```
 
 Confidence interval:
-```{r}
-newgrille = data.frame(LotArea=seq(min(home_no_outliers$LotArea)+1,max(home_no_outliers$LotArea)-1),2) 
-predicgrille = predict.lm(linear_backward_without_outliers, newgrille, interval='confidence',level=0.95) 
-plot(home_no_outliers$LotArea,home_no_outliers$SalePrice,ylab="SalePrice",xlab="LotArea",pch=20)
-#abline(linear_backward_without_outliers,col='red')
-matlines(newgrille$SalePrice,predicgrille,lty=c(1,2,2),col=c("red","blue","blue")) 
-predicgrille = predict.lm(linear_backward_without_outliers,newgrille, interval='prediction',level=0.95) 
-matlines(newgrille$SalePrice,predicgrille,lty=c(1,2,2),col=c("red","green","green"))
-```
+
 ```{r}
 # Assuming gaussianity 
 summary(linear_backward_without_outliers)$coefficients
 ```
-
-
-
-```{r}
-p-value:  
-Estimate of the generalization error of our final model:  training data 
-  
-\textbf{V. Discussion}  
-Final conclusions on our model:  
-key learnings:  
-Improvements for future projects:
