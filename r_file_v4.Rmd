@@ -90,9 +90,9 @@ cat("The mean of Saleprice is", mean(home_numerical$SalePrice), "whereas the med
 SalePrice is volatile with many houses to the left hand side, but with an important number of outliers to the right with extreme values which skew the data. To smoothen the output and approach a normal distribution, we will consider the log when fitting our model. 
 ```{r}
 par(mfrow=c(1,3))
-hist(log(home_numerical[,"SalePrice"]))
-boxplot(log(home_numerical[,"SalePrice"]))
-qqnorm(log(home_numerical$SalePrice))
+#hist(log(home_numerical[,"SalePrice"]))
+#boxplot(log(home_numerical[,"SalePrice"]))
+#qqnorm(log(home_numerical$SalePrice))
 ```
 log(SalePrice) is pretty close to a normal distribution, except for extreme values. 
 
@@ -176,6 +176,7 @@ Note that this is also the case for HeatingQC, GarageFinish, BsmtFinType1.
 
 Intuitively, we said that both location and overall quality will impact SalePrice significantly. Let us check this with anova and ancova tests. 
 ```{r}
+levels(home$OverallQual) = c("-4.3","-3.3","-2.4", "-1.6", "-0.8", "-0.0", "0.7", "1.4", "2.0", "2.7")
 # Area
 par(mfrow=c(1,2))
 library(ggplot2)
@@ -280,7 +281,7 @@ home$ExterCond[home$ExterCond %in% c("Po", "Ex", "Fa", "Gd")] = "EC_Other"
 # OverallQual
 table(home$OverallQual)
 levels(home$OverallQual) <- c(levels(home$OverallQual), "Very_Low") 
-home$OverallQual[home$OverallQual %in% c("-4.27238846180047", "-3.28279659466729", "-2.38962301582022")] = "Very_Low"
+home$OverallQual[home$OverallQual %in% c("-4.3","-3.3","-2.4")] = "Very_Low"
 ```
 
 ```{r}
@@ -371,7 +372,6 @@ extractAIC(linear_select_variables_forward)
 extractAIC(linear_select_variables_backward)
 extractAIC(linear_select_variables_both)
 ```
-  
 We choose the model extracted by the backward or the both method as they have the same AIC, smaller than the one of the forward method. We choose arbitrarily the backward one. For this specific model, let's verify that the postulates are verified.   
   
 ```{r}
@@ -449,11 +449,11 @@ plot(linear_backward_without_outliers, which=5) # outliers wusing cook's distanc
 According to the graphs, P1 and P3 are validated without hesitation. 
 For P2, we notice an slight elliptic behaviour in the middle, but it seems slight enough to validate the postulate. 
 For P4, we have tail observations that do not fit the normal distribution. Based on the high number of observations in our dataframe and the few number of points not aligned with the normal distribution quantiles, we validate the postulate. 
+```{r}
+summary(linear_backward_without_outliers)
+```
 
 \textbf{IV. Final models}  
-```{r}
-linear_backward_without_outliers
-```
 
 Parameters of our model:  
 Error:  
@@ -466,6 +466,8 @@ test$OverallCond = as.factor(test$OverallCond)
 test$MoSold = as.factor(test$MoSold)
 test$MSSubClass = as.factor(test$MSSubClass)
 test$Fireplaces = as.factor(test$Fireplaces)
+
+levels(test$OverallQual) = c("-4.3","-3.3","-2.4", "-1.6", "-0.8", "-0.0", "0.7", "1.4", "2.0", "2.7")
 
 # Regrouping neighbourhoods of less than 20 and 50 sales together
 levels(test$Neighborhood) <- c(levels(test$Neighborhood), "N_Under20Sales","N_Under50Sales") 
@@ -486,16 +488,19 @@ test$ExterCond[test$ExterCond %in% c("Po", "Ex", "Fa", "Gd")] = "EC_Other"
 
 # OverallQual
 levels(test$OverallQual) <- c(levels(test$OverallQual), "Very_Low") 
-test$OverallQual[test$OverallQual %in% c("-4.27238846180047", "-3.28279659466729", "-2.38962301582022")] = "Very_Low"
+test$OverallQual[test$OverallQual %in% c("-4.3","-3.3","-2.4")] = "Very_Low"
 ```
 
 ```{r}
-head(test)
+saveRDS(test,file = "testv4.RData")
 ```
 
 ```{r}
 # Test error
 sqrt(mean((test$SalePrice - exp(predict.lm(linear_backward_without_outliers, test))) ^ 2))
+```
+```{r}
+summary(linear_backward_without_outliers)
 ```
 
 Confidence interval:
