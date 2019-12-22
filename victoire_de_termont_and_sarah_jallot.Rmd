@@ -420,20 +420,22 @@ plot(test$SalePrice, test_residuals, main = "Absolute Residuals as a function of
 cat("As we could infer from the plot, the skewness of our test residuals is very high at ", skewness(test_residuals))
 ```
 ```{r, include = FALSE}
-test_truncated = test[test$SalePrice < 300000,]
+test_truncated <- test[test$SalePrice < 300000,]
 sqrt(mean((test_truncated$SalePrice - exp(predict.lm(model1, test_truncated))) ^ 2))
 ```
 
 \textbf{VI. Bonus}  
-You can find in the code a quick try at implementing the first solution (without removing any outliers nor looking at the postulates). It would be smarter to find an evident split inside the features rather than in the output, fit two models along these features znd then, hand in the predictions of one model or the other depending on where we are in the split. 
+You can find in the code a quick try at implementing the first solution (without removing any outliers nor looking at the postulates). It would be smarter to find an evident split inside the features rather than in the output, fit two models along these features and then, hand in the predictions of one model or the other depending on where we are in the split. Additionally, the code bugs because some factors have only one level in one of the datasets (which could indicate a good way to split our data!)
 ```{r, include = FALSE}
 home_streamlined$SalePrice <- old_sale_price
 # Removing condition 2 as it created an error in both models
-home_streamlined2 <- home_streamlined[-c(13)] 
+home_streamlined2 <- home_streamlined[-c(13)]
+```
 
+```{r, include = FALSE}
 # Fitting a model on saleprices under 300,000 dollars
 mask1 <- home_streamlined2$SalePrice < 300000
-home_under300K <- home_streamlined2[mask,]
+home_under300K <- home_streamlined2[mask1,]
 reg1 <- lm(log(SalePrice)~., data = home_under300K)
 forward1 <- stepAIC(reg1, trace=0, direction=c("forward"), verbose = FALSE)
 backward1 <- stepAIC(reg1,~., trace=0, direction=c("backward"))
@@ -441,27 +443,27 @@ both1 <- stepAIC(reg1, trace=0, direction=c("both"))
 
 # Over 300,000 dollars
 mask2 <- home_streamlined2$SalePrice >= 300000
-home_over300K = home_streamlined2[mask,]
-reg2 <- lm(log(SalePrice)~., data = home_over300K)
-forward2 <- stepAIC(reg2, trace=0, direction=c("forward"), verbose = FALSE)
-backward2 <- stepAIC(reg2,~., trace=0, direction=c("backward"))
-both2 <- stepAIC(reg2, trace=0, direction=c("both"))
+home_over300K = home_streamlined2[mask2,]
+#reg2 <- lm(log(SalePrice)~., data = home_over300K)
+#forward2 <- stepAIC(reg2, trace=0, direction=c("forward"), verbose = FALSE)
+#backward2 <- stepAIC(reg2,~., trace=0, direction=c("backward"))
+#both2 <- stepAIC(reg2, trace=0, direction=c("both"))
 
 # Selecting the best model among these
 extractAIC(forward1)
 extractAIC(backward1)
 extractAIC(both1)
 
-extractAIC(forward2)
-extractAIC(backward2)
-extractAIC(both2)
+#extractAIC(forward2)
+#extractAIC(backward2)
+#extractAIC(both2)
 
 # In both cases, we select the backward model
 model_under300K <- backward1
-model_over300K <- backward2
+#model_over300K <- backward2
 
 # We now average our predictions
 test <- test[-c(13)]
-predictions <- (exp(predict.lm(model_under300K, test)) + exp(predict.lm(model_under300K, test)))/2
-sqrt(mean((test$SalePrice - predictions)^2)) # our test error is high at 34K. 
+#predictions <- (exp(predict.lm(model_under300K, test)) + exp(predict.lm(model_under300K, test)))/2
+#sqrt(mean((test$SalePrice - predictions)^2)) # our test error is high at 34K. 
 ```
